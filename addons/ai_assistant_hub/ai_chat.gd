@@ -32,8 +32,6 @@ After receiving tool results, continue with another tool call if more context is
 @onready var prompt_txt: TextEdit = %PromptTxt
 @onready var bot_portrait: BotPortrait = %BotPortrait
 @onready var quick_prompts_panel: Container = %QuickPromptsPanel
-@onready var reply_sound: AudioStreamPlayer = %ReplySound
-@onready var error_sound: AudioStreamPlayer = %ErrorSound
 @onready var model_options_btn: OptionButton = %ModelOptionsBtn
 @onready var temperature_slider: HSlider = %TemperatureSlider
 @onready var temperature_override_checkbox: CheckBox = %TemperatureOverrideCheckbox
@@ -111,7 +109,6 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 		if new_conversation:
 			bot_portrait.set_random()
 		bot_portrait.think.connect(func(value:bool): bot_cancel.visible = value)
-		reply_sound.pitch_scale = randf_range(0.7, 1.2)
 	
 		if _assistant_settings.quick_prompts and _assistant_settings.quick_prompts.size() > 0:
 			AIHubPlugin.print_msg("Loading quick prompts for %s." % bot_name)
@@ -308,8 +305,6 @@ func _submit_prompt(prompt:String, quick_prompt:AIQuickPromptResource = null) ->
 
 
 func _abandon_request() -> void:
-	if ProjectSettings.get_setting(AIHubPlugin.PREF_AUDIO_HINTS, true):
-		error_sound.play()
 	http_request.cancel_request()
 	bot_portrait.is_thinking = false
 	_add_to_chat("Abandoned previous request.", Caller.System)
@@ -322,13 +317,9 @@ func _on_http_request_completed(result: int, response_code: int, headers: Packed
 	if result == 0:
 		var text_answer = _llm.read_response(body)
 		if text_answer == LLMInterface.INVALID_RESPONSE:
-			if ProjectSettings.get_setting(AIHubPlugin.PREF_AUDIO_HINTS, true):
-				error_sound.play()
 			AIHubPlugin.print_err("Response: %s" % _llm.get_full_response(body))
 			_add_to_chat("An error occurred while processing your last request. Review the details in Godot's Output tab.", Caller.System)
 		else:
-			if ProjectSettings.get_setting(AIHubPlugin.PREF_AUDIO_HINTS, true):
-				reply_sound.play()
 			if _try_handle_agent_tool_call(text_answer):
 				return
 			_conversation.add_assistant_response(text_answer)
@@ -337,8 +328,6 @@ func _on_http_request_completed(result: int, response_code: int, headers: Packed
 		AIHubPlugin.print_msg("Chat HTTP response:\n\tResult: %d,\n\tResponse Code: %d,\n\tHeaders: %s,\n\tBody: %s" %
 			[result, response_code, headers, body.get_string_from_utf8() if body != null else "null"]
 		)
-		if ProjectSettings.get_setting(AIHubPlugin.PREF_AUDIO_HINTS, true):
-			error_sound.play()
 		_add_to_chat("An error occurred while communicating with the assistant. Review the details in Godot's Output tab.", Caller.System)
 
 

@@ -141,9 +141,6 @@ The stable part of the workflow is provider-agnostic: select a model that respon
 * System message is no longer lost in saved chats (closes #75).
 * Added anonymous (counting) usage stats to understand better what versions and APIs most people use.
 
-**1.8.2**
-* New entry in settings to disable/enable chat sounds (Project Settings > General > Plugins > AI Assistant Hub > Audio Hints).
-
 **1.8.1**
 * When you select an assistant tab, the chat text box is now focused automatically.
 * Added commented code in ai_hub_plugin.gd under _enter_tree() and _exit_tree(), in Godot 4.6 you can uncomment this to enable making the plugin screen floating by right-clicking its tab.
