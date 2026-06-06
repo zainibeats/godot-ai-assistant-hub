@@ -88,6 +88,8 @@ The following keywords are used to allow the prompt to pull data from the Code E
 
 Stable prompt patterns matter more than model-specific wording here: ask for focused changes, one fenced block for code that should be inserted, and chat-only explanations for reviews or debugging.
 
+When project context is enabled, chat assistants can also use project tools to list, search, read, create, and edit allowed project text files under `res://`. File writes are limited to the same project file types used by project context (`.gd`, `.tscn`, `.tres`, `.cs`, `.shader`, and `project.godot`) and capped at 256 KB per file. Existing files are edited with exact-text replacement or explicit full-file overwrite.
+
 ## Setup steps
 In general this is what you need to do:
 

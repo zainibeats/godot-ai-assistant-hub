@@ -16,14 +16,16 @@ const SAVE_PATH := "user://ai_assistant_hub/saved_chats/"
 const MAX_AGENT_TOOL_ITERATIONS := 6
 const PROJECT_CONTEXT_SYSTEM_PROMPT := """
 
-Project context tools are available. Use them when the user asks about project files, symbols, scripts, scenes, resources, or code that is not already in the chat.
+Project tools are available. Use read-only tools when the user asks about project files, symbols, scripts, scenes, resources, or code that is not already in the chat. Use write tools only when the user asks you to create or modify project files.
 
-To request context, reply with exactly one tool call and no other text:
+To use a project tool, reply with exactly one tool call and no other text:
 <tool_call>{"name":"project_search","arguments":{"query":"symbol or text","limit":20}}</tool_call>
 <tool_call>{"name":"read_project_file","arguments":{"path":"res://path/to/file.gd"}}</tool_call>
 <tool_call>{"name":"list_project_files","arguments":{"limit":100}}</tool_call>
+<tool_call>{"name":"write_project_file","arguments":{"path":"res://path/to/file.gd","content":"full file content","overwrite":false}}</tool_call>
+<tool_call>{"name":"replace_in_project_file","arguments":{"path":"res://path/to/file.gd","old_text":"exact text to replace","new_text":"replacement text","expected_replacements":1}}</tool_call>
 
-After receiving tool results, continue with another tool call if more context is needed, or answer the user directly. Do not guess project-specific details when a search/read tool can verify them.
+Before editing an existing file, read it first unless its exact contents are already in the chat. Prefer replace_in_project_file for focused edits and write_project_file for new files or full-file rewrites. After receiving tool results, continue with another tool call if more work is needed, or answer the user directly with a concise summary. Do not guess project-specific details when a search/read tool can verify them.
 """
 
 @onready var http_request: HTTPRequest = %HTTPRequest
@@ -419,14 +421,14 @@ func _try_handle_agent_tool_call(text_answer:String) -> bool:
 	if typeof(raw_args) == TYPE_DICTIONARY:
 		args = raw_args
 	var tool_result := _project_context_tool.execute_tool_call(tool_name, args)
-	AIHubPlugin.print_msg("Project context tool call: %s %s" % [tool_name, args])
-	_add_to_chat("Using project context: %s" % tool_name, Caller.System)
+	AIHubPlugin.print_msg("Project tool call: %s %s" % [tool_name, args])
+	_add_to_chat("Using project tool: %s" % tool_name, Caller.System)
 	_submit_agent_tool_result(tool_name, tool_result)
 	return true
 
 
 func _submit_agent_tool_result(tool_name:String, tool_result:Dictionary) -> void:
-	var result_text := "Tool result for %s:\n```json\n%s\n```\nUse this project context to continue. If more context is needed, request another tool call. Otherwise answer the user's original request." % [
+	var result_text := "Tool result for %s:\n```json\n%s\n```\nUse this project tool result to continue. If more tool work is needed, request another tool call. Otherwise answer the user's original request." % [
 		tool_name,
 		JSON.stringify(tool_result, "\t")
 	]

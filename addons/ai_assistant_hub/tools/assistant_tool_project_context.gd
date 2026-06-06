@@ -88,6 +88,71 @@ func read_project_file(path:String) -> Dictionary:
 	}
 
 
+func write_project_file(path:String, content:String, overwrite:bool = false) -> Dictionary:
+	path = _normalize_res_path(path)
+	if path.is_empty():
+		return _error("write_project_file", "Path must be a res:// project file.")
+	if not _is_allowed_file(path):
+		return _error("write_project_file", "File type is not allowed for project writes.")
+	var content_bytes := content.to_utf8_buffer().size()
+	if content_bytes > MAX_FILE_BYTES:
+		return _error("write_project_file", "File content is too large: %s bytes" % content_bytes)
+	var already_exists := FileAccess.file_exists(path)
+	if already_exists and not overwrite:
+		return _error("write_project_file", "File already exists. Set overwrite to true to replace it: %s" % path)
+	var dir_error := _ensure_directory(path.get_base_dir())
+	if dir_error != OK:
+		return _error("write_project_file", "Could not create directory %s. Error: %s" % [path.get_base_dir(), dir_error])
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return _error("write_project_file", "Could not open file for writing: %s. Error: %s" % [path, FileAccess.get_open_error()])
+	file.store_string(content)
+	file.close()
+	return {
+		"tool": "write_project_file",
+		"path": path,
+		"bytes": content_bytes,
+		"created": not already_exists,
+		"overwritten": already_exists
+	}
+
+
+func replace_in_project_file(path:String, old_text:String, new_text:String, expected_replacements:int = 1) -> Dictionary:
+	path = _normalize_res_path(path)
+	if path.is_empty():
+		return _error("replace_in_project_file", "Path must be a res:// project file.")
+	if not _is_allowed_file(path):
+		return _error("replace_in_project_file", "File type is not allowed for project writes.")
+	if not FileAccess.file_exists(path):
+		return _error("replace_in_project_file", "File does not exist: %s" % path)
+	if old_text.is_empty():
+		return _error("replace_in_project_file", "old_text cannot be empty.")
+	var length := _file_length(path)
+	if length > MAX_FILE_BYTES:
+		return _error("replace_in_project_file", "File is too large for project writes: %s bytes" % length)
+	var text := _read_file_text(path, MAX_FILE_BYTES)
+	var replacement_count := text.count(old_text)
+	if replacement_count == 0:
+		return _error("replace_in_project_file", "old_text was not found in %s" % path)
+	if expected_replacements > 0 and replacement_count != expected_replacements:
+		return _error("replace_in_project_file", "Expected %s replacement(s), but found %s." % [expected_replacements, replacement_count])
+	var updated_text := text.replace(old_text, new_text)
+	var updated_bytes := updated_text.to_utf8_buffer().size()
+	if updated_bytes > MAX_FILE_BYTES:
+		return _error("replace_in_project_file", "Updated file content is too large: %s bytes" % updated_bytes)
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return _error("replace_in_project_file", "Could not open file for writing: %s. Error: %s" % [path, FileAccess.get_open_error()])
+	file.store_string(updated_text)
+	file.close()
+	return {
+		"tool": "replace_in_project_file",
+		"path": path,
+		"replacements": replacement_count,
+		"bytes": updated_bytes
+	}
+
+
 func execute_tool_call(tool_name:String, args:Dictionary) -> Dictionary:
 	match tool_name:
 		"list_project_files":
@@ -96,6 +161,19 @@ func execute_tool_call(tool_name:String, args:Dictionary) -> Dictionary:
 			return search_project(str(args.get("query", "")), int(args.get("limit", MAX_SEARCH_MATCHES)))
 		"read_project_file":
 			return read_project_file(str(args.get("path", "")))
+		"write_project_file":
+			return write_project_file(
+				str(args.get("path", "")),
+				str(args.get("content", "")),
+				bool(args.get("overwrite", false))
+			)
+		"replace_in_project_file":
+			return replace_in_project_file(
+				str(args.get("path", "")),
+				str(args.get("old_text", "")),
+				str(args.get("new_text", "")),
+				int(args.get("expected_replacements", 1))
+			)
 	return _error(tool_name, "Unknown project context tool.")
 
 
@@ -168,6 +246,12 @@ func _file_length(path:String) -> int:
 	var length := file.get_length()
 	file.close()
 	return length
+
+
+func _ensure_directory(path:String) -> Error:
+	if DirAccess.dir_exists_absolute(path):
+		return OK
+	return DirAccess.make_dir_recursive_absolute(path)
 
 
 func _error(tool_name:String, message:String) -> Dictionary:
