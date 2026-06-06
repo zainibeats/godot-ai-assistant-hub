@@ -13,6 +13,18 @@ enum Caller {
 
 const CHAT_HISTORY_EDITOR = preload("res://addons/ai_assistant_hub/chat_history_editor.tscn")
 const SAVE_PATH := "user://ai_assistant_hub/saved_chats/"
+const MAX_AGENT_TOOL_ITERATIONS := 6
+const PROJECT_CONTEXT_SYSTEM_PROMPT := """
+
+Project context tools are available. Use them when the user asks about project files, symbols, scripts, scenes, resources, or code that is not already in the chat.
+
+To request context, reply with exactly one tool call and no other text:
+<tool_call>{"name":"project_search","arguments":{"query":"symbol or text","limit":20}}</tool_call>
+<tool_call>{"name":"read_project_file","arguments":{"path":"res://path/to/file.gd"}}</tool_call>
+<tool_call>{"name":"list_project_files","arguments":{"limit":100}}</tool_call>
+
+After receiving tool results, continue with another tool call if more context is needed, or answer the user directly. Do not guess project-specific details when a search/read tool can verify them.
+"""
 
 @onready var http_request: HTTPRequest = %HTTPRequest
 @onready var models_http_request: HTTPRequest = %ModelsHTTPRequest
@@ -39,9 +51,11 @@ var _assistant_settings: AIAssistantResource
 var _last_quick_prompt: AIQuickPromptResource
 var _code_selector: AssistantToolSelection
 var _bot_answer_handler: AIAnswerHandler
+var _project_context_tool: AssistantToolProjectContext
 var _llm: LLMInterface
 var _conversation: AIConversation
 var _chat_save_path: String
+var _agent_tool_iterations := 0
 
 
 func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot_name:String) -> void:
@@ -53,6 +67,7 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 		await ready
 	_code_selector = AssistantToolSelection.new(plugin)
 	_bot_answer_handler = AIAnswerHandler.new(plugin, _code_selector)
+	_project_context_tool = AssistantToolProjectContext.new()
 	_bot_answer_handler.bot_message_produced.connect(func(message): _add_to_chat(message, Caller.Bot) )
 	_bot_answer_handler.error_message_produced.connect(func(message): _add_to_chat(message, Caller.System) )
 	_set_tab_label()
@@ -92,7 +107,7 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 		temperature_override_checkbox.button_pressed = assistant_settings.use_custom_temperature
 		_on_temperature_override_checkbox_toggled(temperature_override_checkbox.button_pressed)
 		
-		_conversation.set_system_message("%s\nYour name is %s." % [_assistant_settings.ai_description, _bot_name])
+		_conversation.set_system_message(_build_system_message())
 		if new_conversation:
 			bot_portrait.set_random()
 		bot_portrait.think.connect(func(value:bool): bot_cancel.visible = value)
@@ -175,6 +190,13 @@ func _create_conversation(llm_provider: LLMProviderResource) -> void:
 	)
 	_conversation.chat_edited.connect(_on_conversation_chat_edited)
 	_conversation.chat_appended.connect(_on_conversation_chat_appended)
+
+
+func _build_system_message() -> String:
+	var message := "%s\nYour name is %s." % [_assistant_settings.ai_description, _bot_name]
+	if ProjectSettings.get_setting(AIHubPlugin.PREF_PROJECT_CONTEXT, true):
+		message += PROJECT_CONTEXT_SYSTEM_PROMPT
+	return message
 
 
 func _find_llm_provider() -> LLMProviderResource:
@@ -273,6 +295,7 @@ func _submit_prompt(prompt:String, quick_prompt:AIQuickPromptResource = null) ->
 	if bot_portrait.is_thinking:
 		_abandon_request()
 	_last_quick_prompt = quick_prompt
+	_agent_tool_iterations = 0
 	bot_portrait.is_thinking = true
 	_conversation.add_user_prompt(prompt)
 	if not _llm:
@@ -306,6 +329,8 @@ func _on_http_request_completed(result: int, response_code: int, headers: Packed
 		else:
 			if ProjectSettings.get_setting(AIHubPlugin.PREF_AUDIO_HINTS, true):
 				reply_sound.play()
+			if _try_handle_agent_tool_call(text_answer):
+				return
 			_conversation.add_assistant_response(text_answer)
 			_bot_answer_handler.handle(text_answer, _last_quick_prompt)
 	else:
@@ -385,6 +410,70 @@ func _add_to_chat(text:String, caller:Caller) -> void:
 		await get_tree().process_frame
 		await get_tree().process_frame  # Wait two frames to ensure text and scrollbar are updated
 		_scroll_output_by_page()
+
+
+func _try_handle_agent_tool_call(text_answer:String) -> bool:
+	if not ProjectSettings.get_setting(AIHubPlugin.PREF_PROJECT_CONTEXT, true):
+		return false
+	var tool_call := _extract_tool_call(text_answer)
+	if tool_call.is_empty():
+		return false
+	if _agent_tool_iterations >= MAX_AGENT_TOOL_ITERATIONS:
+		_add_to_chat("Project context tool limit reached. Ask again with a narrower request.", Caller.System)
+		return false
+	
+	_agent_tool_iterations += 1
+	_conversation.add_assistant_response(text_answer)
+	var tool_name:String = tool_call.get("name", tool_call.get("tool", ""))
+	var raw_args = tool_call.get("arguments", tool_call.get("args", {}))
+	var args:Dictionary = {}
+	if typeof(raw_args) == TYPE_DICTIONARY:
+		args = raw_args
+	var tool_result := _project_context_tool.execute_tool_call(tool_name, args)
+	AIHubPlugin.print_msg("Project context tool call: %s %s" % [tool_name, args])
+	_add_to_chat("Using project context: %s" % tool_name, Caller.System)
+	_submit_agent_tool_result(tool_name, tool_result)
+	return true
+
+
+func _submit_agent_tool_result(tool_name:String, tool_result:Dictionary) -> void:
+	var result_text := "Tool result for %s:\n```json\n%s\n```\nUse this project context to continue. If more context is needed, request another tool call. Otherwise answer the user's original request." % [
+		tool_name,
+		JSON.stringify(tool_result, "\t")
+	]
+	_conversation.add_user_prompt(result_text)
+	bot_portrait.is_thinking = true
+	var success := _llm.send_chat_request(http_request, _conversation.build())
+	if not success:
+		bot_portrait.is_thinking = false
+		_add_to_chat("Project context was loaded, but the follow-up assistant request failed. Review the details in Godot's Output tab.", Caller.System)
+
+
+func _extract_tool_call(text_answer:String) -> Dictionary:
+	var start := text_answer.find("<tool_call>")
+	var end := text_answer.find("</tool_call>")
+	if start == -1 or end == -1 or end <= start:
+		return {}
+	var json_text := text_answer.substr(start + "<tool_call>".length(), end - start - "<tool_call>".length()).strip_edges()
+	var json := JSON.new()
+	var parse_result := json.parse(json_text)
+	if parse_result != OK:
+		AIHubPlugin.print_err("Failed to parse project context tool call: %s" % json.get_error_message())
+		return {
+			"name": "invalid_tool_call",
+			"arguments": {
+				"error": json.get_error_message()
+			}
+		}
+	var data = json.get_data()
+	if typeof(data) != TYPE_DICTIONARY:
+		return {
+			"name": "invalid_tool_call",
+			"arguments": {
+				"error": "Tool call JSON must be an object."
+			}
+		}
+	return data
 
 
 func _on_models_http_request_request_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:

@@ -8,6 +8,7 @@ const PREF_REMOVE_THINK:= "plugins/ai_assistant_hub/preferences/thinking_target"
 const PREF_SCROLL_BOTTOM:= "plugins/ai_assistant_hub/preferences/always_scroll_to_bottom"
 const PREF_SKIP_GREETING:= "plugins/ai_assistant_hub/preferences/skip_greeting"
 const PREF_AUDIO_HINTS:= "plugins/ai_assistant_hub/preferences/audio_hints"
+const PREF_PROJECT_CONTEXT:= "plugins/ai_assistant_hub/preferences/project_context"
 const OPT_DEBUG:= "plugins/ai_assistant_hub/options/debug_mode"
 
 const CONFIG_LLM_API:= "plugins/ai_assistant_hub/llm_api"
@@ -139,6 +140,15 @@ func initialize_project_settings() -> void:
 	if not ProjectSettings.has_setting(PREF_AUDIO_HINTS):
 		ProjectSettings.set_setting(PREF_AUDIO_HINTS, true)
 		ProjectSettings.save()
+	
+	if not ProjectSettings.has_setting(PREF_PROJECT_CONTEXT):
+		_add_project_setting(PREF_PROJECT_CONTEXT, true, TYPE_BOOL)
+		ProjectSettings.save()
+	else:
+		ProjectSettings.add_property_info({
+			"name": PREF_PROJECT_CONTEXT,
+			"type": TYPE_BOOL
+		})
 	
 	plugin_data.set_value("general","last_used_version",get_version())
 	plugin_data.save(PLUGIN_DATA_PATH)
