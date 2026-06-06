@@ -103,6 +103,24 @@ func read_response(body:PackedByteArray) -> String:
 	return INVALID_RESPONSE
 
 
+func get_openai_style_reasoning_effort() -> String:
+	match reasoning:
+		"Disabled":
+			return "none"
+		"Minimal":
+			return "minimal"
+		"Low":
+			return "low"
+		"Medium":
+			return "medium"
+		"High":
+			return "high"
+		"Extra High":
+			return "xhigh"
+		_:
+			return ""
+
+
 func handle_thinking(thought:String) -> String:
 	var think_target:AIHubPlugin.ThinkingTargets = ProjectSettings.get_setting(AIHubPlugin.PREF_REMOVE_THINK, AIHubPlugin.ThinkingTargets.Output)
 	var think_content := "[Think start]:\n%s\n[Think end]" % thought

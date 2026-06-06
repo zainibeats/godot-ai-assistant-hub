@@ -60,6 +60,10 @@ func send_chat_request(http_request: HTTPRequest, content: Array) -> bool:
 	if override_temperature:
 		body_dict["temperature"] = temperature
 
+	var reasoning_effort := get_openai_style_reasoning_effort()
+	if not reasoning_effort.is_empty():
+		body_dict["reasoning_effort"] = reasoning_effort
+
 	var body := JSON.stringify(body_dict)
 	var error := http_request.request(_chat_url, _headers, HTTPClient.METHOD_POST, body)
 	if error != OK:

@@ -300,14 +300,19 @@ Acceptance criteria:
 
 ### 9. Improve Reasoning Controls Across Providers
 
-**Status:** Proposed
+**Status:** Implemented initial pass
 
 Reasoning controls currently exist mainly for Ollama.
 
 Relevant files:
 
 - `addons/ai_assistant_hub/llm_apis/ollama_api.gd`
+- `addons/ai_assistant_hub/llm_apis/llm_interface.gd`
+- `addons/ai_assistant_hub/llm_apis/openai_compatible_api.gd`
+- `addons/ai_assistant_hub/llm_apis/xai_api.gd`
 - `addons/ai_assistant_hub/llm_providers/ollama.tres`
+- `addons/ai_assistant_hub/llm_providers/openai_compatible.tres`
+- `addons/ai_assistant_hub/llm_providers/xai.tres`
 - `addons/ai_assistant_hub/ai_chat.gd`
 
 Why update:
@@ -320,6 +325,14 @@ Possible implementation:
 - Keep user-facing reasoning labels provider-neutral where possible.
 - Let each provider translate the selected level into its own request body.
 - Handle unsupported reasoning values with clear errors or disabled UI.
+
+Implemented initial pass:
+
+- Kept Ollama's existing mapping for `think` values.
+- Added a shared OpenAI-style `reasoning_effort` mapper for providers that use that request field.
+- Added OpenAI-compatible reasoning levels and mapped them to `reasoning_effort`.
+- Added xAI reasoning levels and mapped them to `reasoning_effort`.
+- Left unsupported providers at `Default` only so the reasoning UI remains hidden for them.
 
 Acceptance criteria:
 
