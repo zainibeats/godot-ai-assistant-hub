@@ -10,7 +10,7 @@ region = Rect2(576, 128, 32, 32)
 [resource]
 script = ExtResource("2_p0k8h")
 action_name = "Debug"
-action_prompt = "What is wrong with this GDScript code?
+action_prompt = "Find the most likely bug or failure point in this GDScript. Explain the cause and suggest the smallest fix. If the code is incomplete, say what context is missing.
 ```gdscript
 {CODE}
 ```"

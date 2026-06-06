@@ -8,6 +8,7 @@ extends Resource
 
 @export_group("API key setup")
 @export var requires_key: bool ## Check this if the API requires an API key to work.
+@export var supports_optional_key: bool ## Check this if the API can use an API key but also works without one.
 @export var get_key_url: String ## If provided a link will be displayed to ease getting the API key.
 
 @export_group("URLs setup")

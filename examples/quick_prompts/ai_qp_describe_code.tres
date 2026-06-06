@@ -10,7 +10,7 @@ region = Rect2(64, 448, 32, 32)
 [resource]
 script = ExtResource("2_57agh")
 action_name = "Describe"
-action_prompt = "Write a very short summary of this code:
+action_prompt = "Write a short, plain-language summary of what this GDScript does. Mention important assumptions or side effects if they are visible from the code.
 ```gdscript
 {CODE}
 ```"

@@ -14,7 +14,7 @@ action_prompt = "Read this code:
 ```gdscript
 {CODE}
 ```
-I want you to be aware of it, I will make some questions and requests about it."
+I want you to use it as context for my next questions. Do not rewrite it unless I ask."
 icon = SubResource("AtlasTexture_u23yd")
 response_target = 0
 code_placement = 0

@@ -113,7 +113,7 @@ func _update_provider_ui() -> void:
 	else:
 		url_txt.editable = false
 		url_txt.text = llm_provider.fix_url
-	api_key_txt.visible = llm_provider.requires_key
+	api_key_txt.visible = llm_provider.requires_key or llm_provider.supports_optional_key
 	api_key_txt.text = config.load_key()
 	get_key_link.visible = not llm_provider.get_key_url.is_empty()
 	get_key_link.uri = llm_provider.get_key_url

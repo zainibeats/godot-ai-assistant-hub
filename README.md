@@ -10,19 +10,22 @@ A Flexible Godot Plugin for AI Assistants
 
 Embed AI assistants in Godot with the ability to read and write code in Godot's Code Editor.
 
-This plugin does not run LLM models directly, but acts as an interface between Godot and your local LLM. There are plenty of options to run LLMs locally. Thanks to the community this tool supports the following:
+This plugin does not run LLM models directly, but acts as an interface between Godot and an LLM provider. There are plenty of options to run LLMs locally or call them remotely. Thanks to the community this tool supports the following:
 
 * [Ollama](https://ollama.com/)*
 * Google Gemini
 * Jan
 * Ollama Turbo
+* OpenAI-compatible endpoints
 * OpenRouter
 * OpenWebUI
 * xAI
 
-**Ollama** is officially supported, while the other LLM providers are maintained by community contributions. Regardless, the plugin delivers the same functionality for all of them.
+**Ollama** is officially supported, while the other LLM providers are maintained by community contributions. The core chat, quick prompt, and code editor workflows are shared across providers, but each provider and model may differ in speed, context length, reasoning behavior, and output quality.
 
 If you use other LLM tools not listed here, you could easily extend this plugin to work with them if they have a REST API. This plugin was designed to be API agnostic. See the videos for more information on this.
+
+For services that expose the OpenAI Chat Completions shape, select **OpenAI Compatible** and configure the base URL without the endpoint suffix, for example `http://localhost:1234/v1`. The addon will call `/models` and `/chat/completions` from that base URL. The API key is optional for this provider: leave it blank for local servers that do not require authentication, or set it for remote endpoints that expect a bearer token. If the provider option does not appear after updating the addon files, reload the project or disable and re-enable the plugin so Godot rebuilds the provider list.
 
 Tutorial Playlist
 -----------------------------------------
@@ -76,12 +79,14 @@ The following keywords are used to allow the prompt to pull data from the Code E
 * Use `{CODE}` to insert the code currently selected in the editor.
 * Use `{CHAT}` to include the current content of the text prompt.
 
-**Note**: Most models already tag their code properly, but not all of them. In order for the plugin to identify what code to use from the assistant's response, you may need to give explicit instructions in their description, for example:
+**Note**: When a Quick Prompt writes directly to the Code Editor, the plugin currently extracts GDScript from fenced Markdown code blocks. Most models already tag their code properly, but not all of them. For editor-writing prompts, give explicit instructions in the assistant description or quick prompt, for example:
 
-    Any code you write you mark it properly, for example:
+    Return code in exactly one GDScript fenced block, for example:
     ```gdscript
     var x:String = "abc"
     ```
+
+Stable prompt patterns matter more than model-specific wording here: ask for focused changes, one fenced block for code that should be inserted, and chat-only explanations for reviews or debugging.
 
 ## Setup steps
 In general this is what you need to do:
@@ -109,7 +114,7 @@ In general this is what you need to do:
         * Use `{CODE}` to insert the code currently selected in the editor.
         * Use `{CHAT}` to include the current content of the text prompt.
     * **Icon**. The icon to display in the Quick Prompt button.
-    * **Respose Target**. Where should the bot's answer go in Godot's editor.
+    * **Response Target**. Where should the bot's answer go in Godot's editor.
     * **Code Placement**. Only relevant when the Response Target is the Code Editor.
     * **Format Response as Comment**. Only relevant when the Response Target is the Code Editor. Useful when the prompt is used to create inline code documentation.
 7. Once done start a new chat to see the Quick Prompt.
@@ -118,10 +123,13 @@ Experiment and build the right type of assistants for your workflow.
 
 ### Not sure what models to use?
 
-I found it is not a good idea to give advice here, as models change all the time. What I suggest you to do is to search “Best coding local LLM models in (current year) that fit (insert your setup here).”
-For example, “Best coding local LLM models in 2026 that fit 8 GB of VRAM.”
+Model recommendations change quickly, so this README avoids hardcoding a "best" model list. The example assistant resources intentionally leave the model field blank; use the model picker to select a model that is currently available in your provider.
+
+For local coding assistants, check current recommendations regularly and include your hardware in the search. For example: “best local coding LLM for Godot GDScript with 8 GB VRAM”. Then test the candidates with the actual workflows you care about: code review, small edits, debugging, and documentation.
 
 The rule of thumb I follow is to check the output speed by chatting with it. If it is slow, the model is not being loaded onto my GPU; it is using RAM/CPU. You probably only want to do that if the results the model produces are remarkably better, or simply if you don’t have a GPU capable of loading any models.
+
+The stable part of the workflow is provider-agnostic: select a model that responds quickly enough, handles your project context well, and reliably follows fenced-code instructions when you use Quick Prompts that write into the Code Editor.
 
 **What's new in the latest version**
 -----------------------

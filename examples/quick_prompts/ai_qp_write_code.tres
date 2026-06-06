@@ -10,11 +10,14 @@ region = Rect2(769, 672, 32, 32)
 [resource]
 script = ExtResource("2_fg1l6")
 action_name = "Code it"
-action_prompt = "Return this code replacing the comment starting with `#CODE_IT` with the corresponding implementation:
+action_prompt = "Replace the comment starting with `#CODE_IT` with the smallest correct GDScript implementation.
+
+Return the complete updated selection in exactly one ```gdscript fenced block. Do not include explanations before or after the code.
+
 ```gdscript
 {CODE}
 ```
-Don't modify any other parts of the code."
+Do not modify unrelated code."
 icon = SubResource("AtlasTexture_fj21g")
 response_target = 2
 code_placement = 2

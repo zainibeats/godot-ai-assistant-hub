@@ -10,7 +10,9 @@ region = Rect2(32, 544, 32, 32)
 [resource]
 script = ExtResource("2_cxefh")
 action_name = "Spell check"
-action_prompt = "Spell check this: {CHAT}"
+action_prompt = "Spell check this text. Preserve the meaning and return only the corrected text:
+
+{CHAT}"
 icon = SubResource("AtlasTexture_kveuu")
 response_target = 0
 code_placement = 0

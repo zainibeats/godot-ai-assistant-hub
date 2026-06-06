@@ -10,7 +10,7 @@ region = Rect2(896, 160, 32, 32)
 [resource]
 script = ExtResource("2_c1k6h")
 action_name = "Review"
-action_prompt = "Review this GDScript code, do you see any bugs?
+action_prompt = "Review this GDScript code. Lead with concrete bugs, regressions, or maintainability risks. Keep style suggestions separate from correctness issues.
 ```gdscript
 {CODE}
 ```"

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="LLMProviderResource" load_steps=2 format=3 uid="uid://dkbyju3jr2dsf"]
+
+[ext_resource type="Script" path="res://addons/ai_assistant_hub/llm_providers/llm_provider_resource.gd" id="1_openai_compatible"]
+
+[resource]
+script = ExtResource("1_openai_compatible")
+api_id = "openai_compatible_api"
+name = "OpenAI Compatible"
+description = "Generic OpenAI-compatible Chat Completions endpoint. Configure a base URL such as http://localhost:1234/v1."
+reasoning_levels = Array[String](["Default"])
+requires_key = false
+supports_optional_key = true
+get_key_url = ""
+fix_url = ""
+models_url_postfix = "/models"
+chat_url_postfix = "/chat/completions"
+system_role_name = "system"
+user_role_name = "user"
+assistant_role_name = "assistant"
