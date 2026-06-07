@@ -31,30 +31,10 @@ func send_chat_request(http_request:HTTPRequest, content:Array) -> bool:
 	if model.is_empty():
 		AIHubPlugin.print_err("ERROR: You need to set an AI model for this assistant type.")
 		return false
-	
-	var body_dict := {
-		"messages": content,
-		"stream": false,
-		"model": model
-	}
-	
-	if override_temperature:
-		body_dict["options"] = { "temperature": temperature }
-	
-	# This must match the Reasoning Levels array in the corresponding LLMProviderResource
-	# The array supports setting a tooltip by using pipe "|", for example:
-	#   "Disabled | In supported models, generates the answer without a reasoning step"
-	# This should match only the first part of the string before the pipe.
-	if supports_reasoning_effort():
-		match reasoning:
-			"Disabled": body_dict["think"] = false
-			"Enabled": body_dict["think"] = true
-			"Low": body_dict["think"] = "low"
-			"Medium": body_dict["think"] = "medium"
-			"High": body_dict["think"] = "high"
-	
+
+	var body_dict := _build_chat_body(content, false)
 	var body := JSON.new().stringify(body_dict)
-	
+
 	#AIHubPlugin.print_msg("Sending HTTP request:\n\tUrl: %s,\n\tHeaders: %s,\n\tBody: %s" % [_chat_url, HEADERS, body])
 	AIHubPlugin.print_msg("Sending chat HTTP request:\n\tUrl: %s,\n\tHeaders: %s" % [_chat_url, HEADERS])
 	var error = http_request.request(_chat_url, HEADERS, HTTPClient.METHOD_POST, body)
@@ -62,6 +42,15 @@ func send_chat_request(http_request:HTTPRequest, content:Array) -> bool:
 		AIHubPlugin.print_err("Something went wrong with last AI API call.\n\tURL: %s\n\tBody:\n\t%s" % [_chat_url, body])
 		return false
 	return true
+
+
+func send_streaming_chat_request(content:Array) -> bool:
+	if model.is_empty():
+		AIHubPlugin.print_err("ERROR: You need to set an AI model for this assistant type.")
+		return false
+	var body := JSON.stringify(_build_chat_body(content, true))
+	AIHubPlugin.print_msg("Sending streaming chat HTTP request:\n\tUrl: %s,\n\tHeaders: %s" % [_chat_url, HEADERS])
+	return _start_streaming_post(_chat_url, HEADERS, body)
 
 
 func read_response(body) -> String:
@@ -82,4 +71,51 @@ func read_response(body) -> String:
 	else:
 		AIHubPlugin.print_msg("Invalid response: %s" % body)
 		return LLMInterface.INVALID_RESPONSE
-	
+
+
+func _build_chat_body(content:Array, stream:bool) -> Dictionary:
+	var body_dict := {
+		"messages": content,
+		"stream": stream,
+		"model": model
+	}
+
+	if override_temperature:
+		body_dict["options"] = { "temperature": temperature }
+
+	# This must match the Reasoning Levels array in the corresponding LLMProviderResource
+	# The array supports setting a tooltip by using pipe "|", for example:
+	#   "Disabled | In supported models, generates the answer without a reasoning step"
+	# This should match only the first part of the string before the pipe.
+	if supports_reasoning_effort():
+		match reasoning:
+			"Disabled": body_dict["think"] = false
+			"Enabled": body_dict["think"] = true
+			"Low": body_dict["think"] = "low"
+			"Medium": body_dict["think"] = "medium"
+			"High": body_dict["think"] = "high"
+	return body_dict
+
+
+func _read_streaming_line(line:String) -> Dictionary:
+	var json := JSON.new()
+	var parse_result := json.parse(line)
+	if parse_result != OK:
+		return { "error": "Failed to parse Ollama streaming response: %s" % json.get_error_message() }
+	var response = json.get_data()
+	if not (response is Dictionary):
+		return { "error": "Ollama streaming response was not a JSON object." }
+
+	if response.has("error"):
+		return { "error": str(response.error) }
+
+	var delta := ""
+	if response.has("message") and (response.message is Dictionary):
+		if response.message.has("thinking"):
+			delta += handle_thinking(response.message.thinking)
+		if response.message.has("content"):
+			delta += str(response.message.content)
+	return {
+		"delta": delta,
+		"done": response.get("done", false)
+	}

@@ -9,6 +9,10 @@ signal override_temperature_changed(value:bool)
 signal temperature_changed(temperature:float)
 signal reasoning_changed(reasoning:String)
 signal llm_config_changed
+signal response_started
+signal response_delta(delta:String)
+signal response_completed(full_response:String)
+signal response_failed(message:String)
 
 const INVALID_RESPONSE := "[INVALID_RESPONSE]"
 
@@ -19,14 +23,14 @@ var model: String:
 		model_changed.emit(value)
 	get:
 		return model
-		
+
 var override_temperature: bool:
 	set(value):
 		override_temperature = value
 		override_temperature_changed.emit(value)
 	get:
 		return override_temperature
-		
+
 var temperature: float:
 	set(value):
 		temperature = value
@@ -48,6 +52,15 @@ var _models_url:String
 var _chat_url:String
 var _api_key:String
 var _llm_provider:LLMProviderResource
+var _stream_http_client: HTTPClient
+var _stream_request_pending := false
+var _stream_request_sent := false
+var _stream_path := ""
+var _stream_headers: PackedStringArray
+var _stream_body := ""
+var _stream_line_buffer := ""
+var _stream_full_response := ""
+var _stream_done := false
 
 
 func _init(llm_provider:LLMProviderResource) -> void:
@@ -99,8 +112,49 @@ func send_chat_request(http_request:HTTPRequest, content:Array) -> bool:
 	return false
 
 
+func send_streaming_chat_request(content:Array) -> bool:
+	return false
+
+
 func read_response(body:PackedByteArray) -> String:
 	return INVALID_RESPONSE
+
+
+func poll_stream_response() -> void:
+	if _stream_http_client == null:
+		return
+	var error := _stream_http_client.poll()
+	if error != OK:
+		_fail_streaming_response("Streaming request failed while polling: %s" % error)
+		return
+
+	match _stream_http_client.get_status():
+		HTTPClient.STATUS_CONNECTED:
+			if _stream_request_pending:
+				_stream_request_pending = false
+				_stream_request_sent = true
+				error = _stream_http_client.request(HTTPClient.METHOD_POST, _stream_path, _stream_headers, _stream_body)
+				if error != OK:
+					_fail_streaming_response("Streaming request failed while sending: %s" % error)
+					return
+				response_started.emit()
+		HTTPClient.STATUS_BODY:
+			_read_streaming_body()
+		HTTPClient.STATUS_DISCONNECTED:
+			if _stream_request_sent:
+				_finish_streaming_response()
+			elif _stream_request_pending:
+				_fail_streaming_response("Streaming request disconnected before sending.")
+
+
+func cancel_streaming_chat_request() -> void:
+	if _stream_http_client:
+		_stream_http_client.close()
+	_clear_streaming_state()
+
+
+func is_streaming_response_active() -> bool:
+	return _stream_http_client != null
 
 
 func supports_streaming() -> bool:
@@ -145,6 +199,133 @@ func get_openai_style_reasoning_effort() -> String:
 			return "xhigh"
 		_:
 			return ""
+
+
+func _start_streaming_post(url:String, headers, body:String) -> bool:
+	var parsed_url := _parse_http_url(url)
+	if parsed_url.is_empty():
+		AIHubPlugin.print_err("Invalid streaming URL: %s" % url)
+		return false
+
+	_stream_http_client = HTTPClient.new()
+	_stream_path = parsed_url.path
+	_stream_headers = headers if (headers is PackedStringArray) else PackedStringArray(headers)
+	_stream_body = body
+	_stream_line_buffer = ""
+	_stream_full_response = ""
+	_stream_done = false
+	_stream_request_pending = true
+	_stream_request_sent = false
+
+	var tls_options = TLSOptions.client() if parsed_url.scheme == "https" else null
+	var error := _stream_http_client.connect_to_host(parsed_url.host, parsed_url.port, tls_options)
+	if error != OK:
+		_clear_streaming_state()
+		AIHubPlugin.print_err("Failed to connect streaming request to %s: %s" % [url, error])
+		return false
+	return true
+
+
+func _parse_http_url(url:String) -> Dictionary:
+	var scheme_end := url.find("://")
+	if scheme_end == -1:
+		return {}
+	var scheme := url.substr(0, scheme_end).to_lower()
+	if scheme != "http" and scheme != "https":
+		return {}
+	var remainder := url.substr(scheme_end + 3)
+	var path_start := remainder.find("/")
+	var host_port := remainder
+	var path := "/"
+	if path_start != -1:
+		host_port = remainder.substr(0, path_start)
+		path = remainder.substr(path_start)
+	if host_port.is_empty():
+		return {}
+
+	var host := host_port
+	var port := 443 if scheme == "https" else 80
+	var port_start := host_port.rfind(":")
+	if port_start > 0:
+		host = host_port.substr(0, port_start)
+		port = int(host_port.substr(port_start + 1))
+
+	return {
+		"scheme": scheme,
+		"host": host,
+		"port": port,
+		"path": path
+	}
+
+
+func _read_streaming_body() -> void:
+	while _stream_http_client != null and _stream_http_client.get_status() == HTTPClient.STATUS_BODY:
+		var chunk := _stream_http_client.read_response_body_chunk()
+		if chunk.is_empty():
+			return
+		_process_streaming_text(chunk.get_string_from_utf8())
+
+
+func _process_streaming_text(text:String) -> void:
+	_stream_line_buffer += text
+	var lines := _stream_line_buffer.split("\n")
+	_stream_line_buffer = lines[lines.size() - 1]
+	for i in range(lines.size() - 1):
+		var line := lines[i].strip_edges()
+		if line.is_empty():
+			continue
+		var parsed := _read_streaming_line(line)
+		if parsed.has("error"):
+			_fail_streaming_response(parsed.error)
+			return
+		var delta:String = parsed.get("delta", "")
+		if not delta.is_empty():
+			_stream_full_response += delta
+			response_delta.emit(delta)
+		if parsed.get("done", false):
+			_finish_streaming_response()
+			return
+
+
+func _read_streaming_line(line:String) -> Dictionary:
+	return { "error": "Provider does not support streaming response parsing." }
+
+
+func _finish_streaming_response() -> void:
+	if _stream_http_client == null:
+		return
+	if not _stream_line_buffer.strip_edges().is_empty():
+		var parsed := _read_streaming_line(_stream_line_buffer.strip_edges())
+		if parsed.has("error"):
+			_fail_streaming_response(parsed.error)
+			return
+		var delta:String = parsed.get("delta", "")
+		if not delta.is_empty():
+			_stream_full_response += delta
+			response_delta.emit(delta)
+	_stream_done = true
+	var response := _msg_cleaner.clean(_stream_full_response)
+	_clear_streaming_state()
+	response_completed.emit(response)
+
+
+func _fail_streaming_response(message:String) -> void:
+	AIHubPlugin.print_err(message)
+	_clear_streaming_state()
+	response_failed.emit(message)
+
+
+func _clear_streaming_state() -> void:
+	if _stream_http_client:
+		_stream_http_client.close()
+	_stream_http_client = null
+	_stream_request_pending = false
+	_stream_request_sent = false
+	_stream_path = ""
+	_stream_body = ""
+	_stream_line_buffer = ""
+	_stream_full_response = ""
+	_stream_done = false
 
 
 func handle_thinking(thought:String) -> String:

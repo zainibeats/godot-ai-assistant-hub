@@ -56,6 +56,7 @@ var _llm: LLMInterface
 var _conversation: AIConversation
 var _chat_save_path: String
 var _agent_tool_iterations := 0
+var _streaming_answer := ""
 
 
 func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot_name:String) -> void:
@@ -71,14 +72,14 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 	_bot_answer_handler.bot_message_produced.connect(func(message): _add_to_chat(message, Caller.Bot) )
 	_bot_answer_handler.error_message_produced.connect(func(message): _add_to_chat(message, Caller.System) )
 	_set_tab_label()
-	
+
 	if _chat_save_path.is_empty():
 		var save_id = ("%s_%s_%s" % [Time.get_datetime_string_from_system(), assistant_settings.type_name, bot_name]).validate_filename()
 		_chat_save_path = SAVE_PATH + save_id + ".cfg"
 		if not DirAccess.dir_exists_absolute(SAVE_PATH):
 			AIHubPlugin.print_msg("Creating folder %s" % SAVE_PATH)
 			DirAccess.make_dir_absolute(SAVE_PATH)
-	
+
 	var llm_provider:= _find_llm_provider()
 	if llm_provider == null:
 		_add_to_chat("ERROR: No LLM provider found.", Caller.System)
@@ -87,7 +88,7 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 	var new_conversation:= _conversation == null
 	if new_conversation:
 		_create_conversation(llm_provider)
-	
+
 	if _assistant_settings: # We need to check this, otherwise this is called when editing the plugin
 		_load_api(llm_provider)
 		if llm_provider.supports_reasoning_effort and llm_provider.reasoning_levels and llm_provider.reasoning_levels.size() > 1:
@@ -103,16 +104,16 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 		else:
 			AIHubPlugin.print_msg("Reasoning controls are not supported for API %s." % llm_provider.name)
 			reasoning_section.visible = false
-		
+
 		temperature_slider.value = assistant_settings.custom_temperature
 		temperature_override_checkbox.button_pressed = assistant_settings.use_custom_temperature
 		_on_temperature_override_checkbox_toggled(temperature_override_checkbox.button_pressed)
-		
+
 		_conversation.set_system_message(_build_system_message())
 		if new_conversation:
 			bot_portrait.set_random()
 		bot_portrait.think.connect(func(value:bool): bot_cancel.visible = value)
-	
+
 		if _assistant_settings.quick_prompts and _assistant_settings.quick_prompts.size() > 0:
 			AIHubPlugin.print_msg("Loading quick prompts for %s." % bot_name)
 		else:
@@ -125,7 +126,7 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 			qp_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			qp_button.pressed.connect(func(): _on_qp_button_pressed(qp))
 			quick_prompts_panel.add_child(qp_button)
-		
+
 		_llm.send_get_models_request(models_http_request)
 		prompt_txt.text = ""
 		prompt_txt.editable = true
@@ -235,8 +236,16 @@ func _load_api(llm_provider:LLMProviderResource) -> void:
 		_llm.model = _assistant_settings.ai_model
 		_llm.override_temperature = _assistant_settings.use_custom_temperature
 		_llm.temperature = _assistant_settings.custom_temperature
+		_connect_llm_stream_signals()
 	else:
 		AIHubPlugin.print_err("LLM provider failed to initialize. Check the LLM API configuration for it.")
+
+
+func _connect_llm_stream_signals() -> void:
+	_llm.response_started.connect(_on_llm_response_started)
+	_llm.response_delta.connect(_on_llm_response_delta)
+	_llm.response_completed.connect(_on_llm_response_completed)
+	_llm.response_failed.connect(_on_llm_response_failed)
 
 
 func _greet() -> void:
@@ -302,16 +311,34 @@ func _submit_prompt(prompt:String, quick_prompt:AIQuickPromptResource = null) ->
 		AIHubPlugin.print_err("No LLM provider loaded. Check your Project Settings!")
 		_add_to_chat("No language model provider loaded. Check configuration!", Caller.System)
 		return
-	var success := _llm.send_chat_request(http_request, _conversation.build())
+	var success := _send_current_conversation_request()
 	if not success:
+		bot_portrait.is_thinking = false
 		_add_to_chat("Something went wrong. Review the details in Godot's Output tab.", Caller.System)
 
 
 func _abandon_request() -> void:
-	http_request.cancel_request()
+	if _llm and _llm.is_streaming_response_active():
+		_llm.cancel_streaming_chat_request()
+	else:
+		http_request.cancel_request()
 	bot_portrait.is_thinking = false
 	_add_to_chat("Abandoned previous request.", Caller.System)
 	_conversation.forget_last_prompt()
+
+
+func _send_current_conversation_request() -> bool:
+	if _llm.supports_streaming():
+		var stream_started := _llm.send_streaming_chat_request(_conversation.build())
+		if stream_started:
+			return true
+		AIHubPlugin.print_msg("Streaming request was not available. Falling back to full response request.")
+	return _llm.send_chat_request(http_request, _conversation.build())
+
+
+func _process(_delta: float) -> void:
+	if _llm and _llm.is_streaming_response_active():
+		_llm.poll_stream_response()
 
 
 func _on_http_request_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
@@ -334,13 +361,49 @@ func _on_http_request_completed(result: int, response_code: int, headers: Packed
 		_add_to_chat("An error occurred while communicating with the assistant. Review the details in Godot's Output tab.", Caller.System)
 
 
+func _on_llm_response_started() -> void:
+	_streaming_answer = ""
+	var auto_scroll_to_bottom: bool = ProjectSettings.get_setting(AIHubPlugin.PREF_SCROLL_BOTTOM, false)
+	output_window.scroll_following = auto_scroll_to_bottom
+	output_window.push_indent(1)
+	output_window.push_indent(1)
+	output_window.append_text("\n[color=FF770066][b]%s[/b][/color]:\n" % _bot_name)
+	output_window.push_indent(1)
+	output_window.pop_all()
+
+
+func _on_llm_response_delta(delta:String) -> void:
+	_streaming_answer += delta
+	output_window.append_text(escape_bbcode(delta))
+
+
+func _on_llm_response_completed(full_response:String) -> void:
+	bot_portrait.is_thinking = false
+	output_window.append_text("\n")
+	var text_answer := full_response
+	if text_answer.is_empty():
+		text_answer = _streaming_answer
+	_streaming_answer = ""
+	if _try_handle_agent_tool_call(text_answer):
+		return
+	_conversation.add_assistant_response(text_answer)
+	if _last_quick_prompt:
+		_bot_answer_handler.apply_actions(text_answer, _last_quick_prompt)
+
+
+func _on_llm_response_failed(_message:String) -> void:
+	bot_portrait.is_thinking = false
+	_streaming_answer = ""
+	_add_to_chat("An error occurred while streaming the assistant response. Review the details in Godot's Output tab.", Caller.System)
+
+
 func escape_bbcode(bbcode_text):
 	return bbcode_text.replace("[", "[lb]")
 
 
 func _add_to_chat(text:String, caller:Caller) -> void:
 	var auto_scroll_to_bottom: bool = ProjectSettings.get_setting(AIHubPlugin.PREF_SCROLL_BOTTOM, false)
-	
+
 	# Set auto-scroll based on message sender
 	if caller == Caller.You or caller == Caller.System:
 		# User and system messages always auto-scroll
@@ -348,10 +411,10 @@ func _add_to_chat(text:String, caller:Caller) -> void:
 	else:  # Caller.Bot
 		# AI replies depend on the auto-scroll switch
 		output_window.scroll_following = auto_scroll_to_bottom
-	
+
 	# Save current text length to calculate how much new content was added
 	var prev_text_length := output_window.text.length()
-	
+
 	match caller:
 		Caller.You:
 			output_window.push_color(Color(0xFFFF00FF))
@@ -365,7 +428,7 @@ func _add_to_chat(text:String, caller:Caller) -> void:
 				# Format markup response with code
 				var parts:= text.split("```")
 				var writing_code := false
-				
+
 				for part in parts:
 					if writing_code:
 						var subparts: = part.split("\n", true, 1)
@@ -393,9 +456,9 @@ func _add_to_chat(text:String, caller:Caller) -> void:
 		Caller.System:
 			output_window.push_color(Color(0xFF7700FF))
 			output_window.append_text("\n[center]%s[/center]\n" % text)
-	
+
 	output_window.pop_all()
-	
+
 	# If this is an AI reply and auto-scroll is disabled, scroll one page
 	if caller == Caller.Bot and not auto_scroll_to_bottom:
 		# Make sure the interface updates first so the scrollbar is properly calculated
@@ -413,7 +476,7 @@ func _try_handle_agent_tool_call(text_answer:String) -> bool:
 	if _agent_tool_iterations >= MAX_AGENT_TOOL_ITERATIONS:
 		_add_to_chat("Project context tool limit reached. Ask again with a narrower request.", Caller.System)
 		return false
-	
+
 	_agent_tool_iterations += 1
 	_conversation.add_assistant_response(text_answer)
 	var tool_name:String = tool_call.get("name", tool_call.get("tool", ""))
@@ -435,7 +498,7 @@ func _submit_agent_tool_result(tool_name:String, tool_result:Dictionary) -> void
 	]
 	_conversation.add_user_prompt(result_text)
 	bot_portrait.is_thinking = true
-	var success := _llm.send_chat_request(http_request, _conversation.build())
+	var success := _send_current_conversation_request()
 	if not success:
 		bot_portrait.is_thinking = false
 		_add_to_chat("Project context was loaded, but the follow-up assistant request failed. Review the details in Godot's Output tab.", Caller.System)

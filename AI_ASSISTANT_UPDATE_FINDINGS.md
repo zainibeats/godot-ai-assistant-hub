@@ -12,7 +12,7 @@ Recent AI assistant patterns have moved toward streaming output, structured resp
 
 ### 1. Add Streaming Responses
 
-**Status:** Proposed
+**Status:** Implemented initial pass
 
 Current behavior waits for a full HTTP response before showing the assistant answer.
 
@@ -35,6 +35,14 @@ Possible implementation:
 - Add stream lifecycle signals to `LLMInterface`, such as `response_started`, `response_delta`, `response_completed`, and `response_failed`.
 - Keep non-streaming as a fallback for providers that do not support it.
 - Start with Ollama because the current request already sets `"stream": false`.
+
+Implemented initial pass:
+
+- Added provider-neutral streaming lifecycle signals and a small `HTTPClient` polling transport to `LLMInterface`.
+- Added streamed chat requests and newline JSON parsing for Ollama.
+- Added streamed chat requests and SSE `data:` parsing for OpenAI-compatible Chat Completions providers.
+- Updated `AIChat` to render assistant deltas incrementally, cancel active streams, and save only the final assistant message.
+- Kept non-streaming `HTTPRequest` behavior as the fallback path.
 
 Acceptance criteria:
 

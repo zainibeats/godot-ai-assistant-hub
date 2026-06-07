@@ -22,13 +22,21 @@ func handle(text_answer:String, quick_prompt:AIQuickPromptResource) -> void:
 		if quick_prompt.format_response_as_comment:
 			text_answer = _convert_to_comment(text_answer)
 		bot_message_produced.emit(text_answer)
-		match quick_prompt.response_target:
-			AIQuickPromptResource.ResponseTarget.CodeEditor:
-				_write_to_code_editor(text_answer, quick_prompt.code_placement)
-			AIQuickPromptResource.ResponseTarget.OnlyCodeToCodeEditor:
-				var code = _extract_gdscript(text_answer)
-				if code.length() > 0:
-					_write_to_code_editor(code, quick_prompt.code_placement)
+		apply_actions(text_answer, quick_prompt)
+
+
+func apply_actions(text_answer:String, quick_prompt:AIQuickPromptResource) -> void:
+	if quick_prompt == null:
+		return
+	if quick_prompt.format_response_as_comment:
+		text_answer = _convert_to_comment(text_answer)
+	match quick_prompt.response_target:
+		AIQuickPromptResource.ResponseTarget.CodeEditor:
+			_write_to_code_editor(text_answer, quick_prompt.code_placement)
+		AIQuickPromptResource.ResponseTarget.OnlyCodeToCodeEditor:
+			var code = _extract_gdscript(text_answer)
+			if code.length() > 0:
+				_write_to_code_editor(code, quick_prompt.code_placement)
 
 
 func _write_to_code_editor(text_answer:String, code_placement:AIQuickPromptResource.CodePlacement) -> void:
