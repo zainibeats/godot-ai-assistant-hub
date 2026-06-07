@@ -5,6 +5,14 @@ extends Control
 const NEW_AI_ASSISTANT_BUTTON = preload("res://addons/ai_assistant_hub/new_ai_assistant_button.tscn")
 const NEW_AI_ASSISTANT_TYPE_WINDOW = preload("res://addons/ai_assistant_hub/new_ai_assistant_type_window.tscn")
 const AI_CHAT = preload("res://addons/ai_assistant_hub/ai_chat.tscn")
+const CURATED_LLM_PROVIDER_FILES := [
+	"ollama.tres",
+	"openai.tres",
+	"claude.tres",
+	"gemini.tres",
+	"openai_compatible.tres",
+	"openrouter.tres",
+]
 
 @onready var models_http_request: HTTPRequest = %ModelsHTTPRequest
 @onready var url_txt: LineEdit = %UrlTxt
@@ -81,9 +89,14 @@ func _initialize_llm_provider_options() -> void:
 	AIHubPlugin.print_msg("Loading LLM providers.")
 	llm_provider_option.clear()
 
-	var files := _get_all_resources("%s/llm_providers" % self.scene_file_path.get_base_dir())
+	var providers_path := "%s/llm_providers" % self.scene_file_path.get_base_dir()
 	var i := 0
-	for provider_file in files:
+	var selected_index := -1
+	for provider_file_name in CURATED_LLM_PROVIDER_FILES:
+		var provider_file = "%s/%s" % [providers_path, provider_file_name]
+		if not ResourceLoader.exists(provider_file):
+			AIHubPlugin.print_err("Curated LLM provider file is missing: %s" % provider_file)
+			continue
 		var provider = load(provider_file)
 		if provider is LLMProviderResource:
 			AIHubPlugin.print_msg("Found %s" % provider.name)
@@ -92,11 +105,15 @@ func _initialize_llm_provider_options() -> void:
 			llm_provider_option.set_item_metadata(i, provider)
 			# Select currently used provider
 			if provider.api_id == _current_api_id:
-				llm_provider_option.select(i)
-				_on_llm_provider_option_item_selected(i)
+				selected_index = i
 			i += 1
 		else:
 			AIHubPlugin.print_msg("File %s is not an LLMProviderResource." % provider_file)
+	if llm_provider_option.item_count > 0:
+		if selected_index < 0:
+			selected_index = 0
+		llm_provider_option.select(selected_index)
+		_on_llm_provider_option_item_selected(selected_index)
 
 
 # Update UI based on current provider selection

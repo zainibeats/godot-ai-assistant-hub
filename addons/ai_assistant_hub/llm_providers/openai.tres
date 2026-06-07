@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="LLMProviderResource" load_steps=2 format=3 uid="uid://bouvfh5lt3k0a"]
+
+[ext_resource type="Script" path="res://addons/ai_assistant_hub/llm_providers/llm_provider_resource.gd" id="1_openai"]
+
+[resource]
+script = ExtResource("1_openai")
+api_id = "openai_api"
+name = "OpenAI"
+description = "OpenAI API using Chat Completions."
+reasoning_levels = Array[String](["Default", "Minimal | For compatible reasoning models, spends the smallest supported reasoning effort", "Low | For compatible reasoning models, spends less reasoning effort", "Medium | For compatible reasoning models, spends medium reasoning effort", "High | For compatible reasoning models, spends more reasoning effort"])
+supports_streaming = true
+supports_tools = true
+supports_structured_output = true
+supports_images = true
+supports_reasoning_effort = true
+supports_json_schema = true
+requires_key = true
+get_key_url = "https://platform.openai.com/api-keys"
+fix_url = "https://api.openai.com/v1"
+models_url_postfix = "/models"
+chat_url_postfix = "/chat/completions"
+system_role_name = "system"
+user_role_name = "user"
+assistant_role_name = "assistant"

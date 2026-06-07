@@ -13,15 +13,13 @@ Embed AI assistants in Godot with the ability to read and write code in Godot's 
 This plugin does not run LLM models directly, but acts as an interface between Godot and an LLM provider. There are plenty of options to run LLMs locally or call them remotely. Thanks to the community this tool supports the following:
 
 * [Ollama](https://ollama.com/)*
+* OpenAI
+* Claude
 * Google Gemini
-* Jan
-* Ollama Turbo
 * OpenAI-compatible endpoints
 * OpenRouter
-* OpenWebUI
-* xAI
 
-**Ollama** is officially supported, while the other LLM providers are maintained by community contributions. The core chat, quick prompt, and code editor workflows are shared across providers, but each provider and model may differ in speed, context length, reasoning behavior, and output quality.
+**Ollama** is officially supported, while the other LLM providers are maintained by community contributions. Older provider resources may still exist for backward compatibility, but the main provider picker now focuses on this shorter modern set. The core chat, quick prompt, and code editor workflows are shared across providers, but each provider and model may differ in speed, context length, reasoning behavior, and output quality.
 
 If you use other LLM tools not listed here, you could easily extend this plugin to work with them if they have a REST API. This plugin was designed to be API agnostic. See the videos for more information on this.
 
@@ -50,7 +48,7 @@ First Video 👇
 **System Requirements**
 -----------------------
 
-The system requirements to run local LLMs depend on the models you use and the speed you expect. Of course, if you use the plugin to run remote models (Gemini, xAI, etc.), then you don't need to worry about this (just about the bills).
+The system requirements to run local LLMs depend on the models you use and the speed you expect. Of course, if you use the plugin to run remote models (OpenAI, Claude, Gemini, etc.), then you don't need to worry about this (just about the bills).
 
 **Tested in versions**
 

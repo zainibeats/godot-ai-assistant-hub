@@ -1,6 +1,10 @@
 **Version history**
 --------------------
 
+**Unreleased**
+* Modernized the main LLM provider picker to focus on Ollama, OpenAI, Claude, Gemini, OpenAI Compatible, and OpenRouter.
+* Added native OpenAI and Claude provider resources.
+
 **1.8.3**
 * Added reasoning level support for Ollama (help wanted to add it to other LLM Providers!)
 * "Make floating" option (by right-click to the plugin tab) is now enabled in Godot 4.6 without need to do any manual code changes (closes #64).
