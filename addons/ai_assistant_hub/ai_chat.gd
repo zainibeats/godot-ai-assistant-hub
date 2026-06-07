@@ -32,7 +32,6 @@ Before editing an existing file, read it first unless its exact contents are alr
 @onready var models_http_request: HTTPRequest = %ModelsHTTPRequest
 @onready var output_window: RichTextLabel = %OutputWindow
 @onready var prompt_txt: TextEdit = %PromptTxt
-@onready var bot_portrait: BotPortrait = %BotPortrait
 @onready var quick_prompts_panel: Container = %QuickPromptsPanel
 @onready var model_options_btn: OptionButton = %ModelOptionsBtn
 @onready var temperature_slider: HSlider = %TemperatureSlider
@@ -55,6 +54,7 @@ var _project_context_tool: AssistantToolProjectContext
 var _llm: LLMInterface
 var _conversation: AIConversation
 var _chat_save_path: String
+var _agent_busy := false
 var _agent_tool_iterations := 0
 var _streaming_answer := ""
 
@@ -110,9 +110,6 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 		_on_temperature_override_checkbox_toggled(temperature_override_checkbox.button_pressed)
 
 		_conversation.set_system_message(_build_system_message())
-		if new_conversation:
-			bot_portrait.set_random()
-		bot_portrait.think.connect(func(value:bool): bot_cancel.visible = value)
 
 		if _assistant_settings.quick_prompts and _assistant_settings.quick_prompts.size() > 0:
 			AIHubPlugin.print_msg("Loading quick prompts for %s." % bot_name)
@@ -161,10 +158,6 @@ func initialize_from_file(plugin:AIHubPlugin, file:String) -> void:
 	await initialize(plugin, _assistant_settings, bot_name)
 	_conversation.overwrite_chat(chat_history)
 	_load_conversation_to_chat(chat_history)
-	var port_base_region:Rect2 = config.get_value("portrait","base_region")
-	var port_mouth_region:Rect2 = config.get_value("portrait","mouth_region")
-	var port_eyes_region:Rect2 = config.get_value("portrait","eyes_region")
-	bot_portrait.load_regions(port_base_region, port_mouth_region, port_eyes_region)
 	save_check_button.button_pressed = true
 	AIHubPlugin.print_msg("Completed loading chat from %s." % file)
 
@@ -175,9 +168,6 @@ func _create_save_file() -> void:
 	config.set_value("setup","assistant_res",_assistant_settings.resource_path)
 	config.set_value("setup","bot_name",_bot_name)
 	config.set_value("setup","system_message", _conversation.get_system_message())
-	config.set_value("portrait","base_region",bot_portrait.get_portrait_base_region())
-	config.set_value("portrait","mouth_region",bot_portrait.get_portrait_mouth_region())
-	config.set_value("portrait","eyes_region",bot_portrait.get_portrait_eyes_region())
 	config.set_value("chat","entries", _conversation.clone_chat())
 	config.save(_chat_save_path)
 
@@ -267,7 +257,7 @@ func _input(event: InputEvent) -> void:
 			var ctrl_pressed = Input.is_physical_key_pressed(KEY_CTRL)
 			if not ctrl_pressed:
 				if not prompt_txt.text.is_empty() and is_enter_key:
-					if bot_portrait.is_thinking:
+					if _agent_busy:
 						_abandon_request()
 					get_viewport().set_input_as_handled()
 					var prompt = _engineer_prompt(prompt_txt.text)
@@ -301,19 +291,20 @@ func _engineer_prompt(original:String) -> String:
 
 
 func _submit_prompt(prompt:String, quick_prompt:AIQuickPromptResource = null) -> void:
-	if bot_portrait.is_thinking:
+	if _agent_busy:
 		_abandon_request()
 	_last_quick_prompt = quick_prompt
 	_agent_tool_iterations = 0
-	bot_portrait.is_thinking = true
+	_set_agent_busy(true)
 	_conversation.add_user_prompt(prompt)
 	if not _llm:
 		AIHubPlugin.print_err("No LLM provider loaded. Check your Project Settings!")
 		_add_to_chat("No language model provider loaded. Check configuration!", Caller.System)
+		_set_agent_busy(false)
 		return
 	var success := _send_current_conversation_request()
 	if not success:
-		bot_portrait.is_thinking = false
+		_set_agent_busy(false)
 		_add_to_chat("Something went wrong. Review the details in Godot's Output tab.", Caller.System)
 
 
@@ -322,9 +313,14 @@ func _abandon_request() -> void:
 		_llm.cancel_streaming_chat_request()
 	else:
 		http_request.cancel_request()
-	bot_portrait.is_thinking = false
+	_set_agent_busy(false)
 	_add_to_chat("Abandoned previous request.", Caller.System)
 	_conversation.forget_last_prompt()
+
+
+func _set_agent_busy(value:bool) -> void:
+	_agent_busy = value
+	bot_cancel.visible = value
 
 
 func _send_current_conversation_request() -> bool:
@@ -342,7 +338,7 @@ func _process(_delta: float) -> void:
 
 
 func _on_http_request_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
-	bot_portrait.is_thinking = false
+	_set_agent_busy(false)
 	AIHubPlugin.print_msg("Chat response received. Response code: %d" % response_code)
 	if result == 0:
 		var text_answer = _llm.read_response(body)
@@ -378,7 +374,7 @@ func _on_llm_response_delta(delta:String) -> void:
 
 
 func _on_llm_response_completed(full_response:String) -> void:
-	bot_portrait.is_thinking = false
+	_set_agent_busy(false)
 	output_window.append_text("\n")
 	var text_answer := full_response
 	if text_answer.is_empty():
@@ -392,7 +388,7 @@ func _on_llm_response_completed(full_response:String) -> void:
 
 
 func _on_llm_response_failed(_message:String) -> void:
-	bot_portrait.is_thinking = false
+	_set_agent_busy(false)
 	_streaming_answer = ""
 	_add_to_chat("An error occurred while streaming the assistant response. Review the details in Godot's Output tab.", Caller.System)
 
@@ -497,10 +493,10 @@ func _submit_agent_tool_result(tool_name:String, tool_result:Dictionary) -> void
 		JSON.stringify(tool_result, "\t")
 	]
 	_conversation.add_user_prompt(result_text)
-	bot_portrait.is_thinking = true
+	_set_agent_busy(true)
 	var success := _send_current_conversation_request()
 	if not success:
-		bot_portrait.is_thinking = false
+		_set_agent_busy(false)
 		_add_to_chat("Project context was loaded, but the follow-up assistant request failed. Review the details in Godot's Output tab.", Caller.System)
 
 
