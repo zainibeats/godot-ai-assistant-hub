@@ -236,7 +236,7 @@ Acceptance criteria:
 
 ### 7. Normalize Provider Capabilities
 
-**Status:** Proposed
+**Status:** Implemented initial pass
 
 Provider resources currently define URLs, role names, keys, and reasoning levels, but not feature support.
 
@@ -259,6 +259,13 @@ Possible capability fields:
 - `supports_images`
 - `supports_reasoning_effort`
 - `supports_json_schema`
+
+Implemented initial pass:
+
+- Added exported provider capability flags with safe default `false` values.
+- Added `LLMInterface` helper methods for checking provider capabilities.
+- Annotated bundled provider resources with known API feature support.
+- Gated the reasoning UI and request fields through `supports_reasoning_effort`.
 
 Acceptance criteria:
 

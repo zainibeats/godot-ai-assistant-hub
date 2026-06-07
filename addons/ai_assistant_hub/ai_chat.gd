@@ -90,9 +90,10 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 	
 	if _assistant_settings: # We need to check this, otherwise this is called when editing the plugin
 		_load_api(llm_provider)
-		if llm_provider.reasoning_levels and llm_provider.reasoning_levels.size() > 1:
+		if llm_provider.supports_reasoning_effort and llm_provider.reasoning_levels and llm_provider.reasoning_levels.size() > 1:
 			AIHubPlugin.print_msg("Loading reasoning levels for API %s." % llm_provider.name)
 			reasoning_section.visible = true
+			reasoning_options_btn.clear()
 			for level in llm_provider.reasoning_levels:
 				var parts := level.split("|")
 				var reasoning_key = parts[0].strip_edges()
@@ -100,7 +101,7 @@ func initialize(plugin:AIHubPlugin, assistant_settings: AIAssistantResource, bot
 				if parts.size() > 1:
 					reasoning_options_btn.set_item_tooltip(reasoning_options_btn.item_count - 1, parts[1].strip_edges())
 		else:
-			AIHubPlugin.print_msg("Reasoning levels are not supported yet for API %s." % llm_provider.name)
+			AIHubPlugin.print_msg("Reasoning controls are not supported for API %s." % llm_provider.name)
 			reasoning_section.visible = false
 		
 		temperature_slider.value = assistant_settings.custom_temperature

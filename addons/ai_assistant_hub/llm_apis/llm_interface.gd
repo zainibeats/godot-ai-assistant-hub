@@ -103,7 +103,33 @@ func read_response(body:PackedByteArray) -> String:
 	return INVALID_RESPONSE
 
 
+func supports_streaming() -> bool:
+	return _llm_provider != null and _llm_provider.supports_streaming
+
+
+func supports_tools() -> bool:
+	return _llm_provider != null and _llm_provider.supports_tools
+
+
+func supports_structured_output() -> bool:
+	return _llm_provider != null and _llm_provider.supports_structured_output
+
+
+func supports_images() -> bool:
+	return _llm_provider != null and _llm_provider.supports_images
+
+
+func supports_reasoning_effort() -> bool:
+	return _llm_provider != null and _llm_provider.supports_reasoning_effort
+
+
+func supports_json_schema() -> bool:
+	return _llm_provider != null and _llm_provider.supports_json_schema
+
+
 func get_openai_style_reasoning_effort() -> String:
+	if not supports_reasoning_effort():
+		return ""
 	match reasoning:
 		"Disabled":
 			return "none"

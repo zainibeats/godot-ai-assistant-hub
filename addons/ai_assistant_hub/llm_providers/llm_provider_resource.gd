@@ -6,6 +6,14 @@ extends Resource
 @export var description: String ## Description to be displayed as a tooltip when hovered in the LLM Provider list.
 @export var reasoning_levels: Array[String] ## List of reasoning levels accepted by this LLM Provider.
 
+@export_group("Capabilities")
+@export var supports_streaming: bool = false ## Provider API can return incremental chat output.
+@export var supports_tools: bool = false ## Provider API supports native model-requested tool/function calls.
+@export var supports_structured_output: bool = false ## Provider API supports constrained structured output.
+@export var supports_images: bool = false ## Provider API supports image input in chat requests.
+@export var supports_reasoning_effort: bool = false ## Provider API supports explicit reasoning/thinking controls.
+@export var supports_json_schema: bool = false ## Provider API supports JSON schema response constraints.
+
 @export_group("API key setup")
 @export var requires_key: bool ## Check this if the API requires an API key to work.
 @export var supports_optional_key: bool ## Check this if the API can use an API key but also works without one.

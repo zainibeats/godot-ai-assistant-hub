@@ -45,12 +45,13 @@ func send_chat_request(http_request:HTTPRequest, content:Array) -> bool:
 	# The array supports setting a tooltip by using pipe "|", for example:
 	#   "Disabled | In supported models, generates the answer without a reasoning step"
 	# This should match only the first part of the string before the pipe.
-	match reasoning:
-		"Disabled": body_dict["think"] = false
-		"Enabled": body_dict["think"] = true
-		"Low": body_dict["think"] = "low"
-		"Medium": body_dict["think"] = "medium"
-		"High": body_dict["think"] = "high"
+	if supports_reasoning_effort():
+		match reasoning:
+			"Disabled": body_dict["think"] = false
+			"Enabled": body_dict["think"] = true
+			"Low": body_dict["think"] = "low"
+			"Medium": body_dict["think"] = "medium"
+			"High": body_dict["think"] = "high"
 	
 	var body := JSON.new().stringify(body_dict)
 	
