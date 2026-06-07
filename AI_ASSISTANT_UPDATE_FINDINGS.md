@@ -391,14 +391,244 @@ Acceptance criteria:
 - Gemini supports function calling and multimodal content, with provider-specific request/response formatting.
 - Ollama supports local chat, streaming, and model-dependent thinking/reasoning options.
 
+## Cursor-Like IDE Experience Review
+
+This section captures follow-up findings from reviewing the current addon through the lens of a Cursor-style editor assistant. The addon already has a useful Godot-native foundation: chat tabs, quick prompts, selected-code insertion, provider adapters, streaming support, and an initial project tool loop. The main gap is that these pieces are still organized like a chat panel with editor helpers, not like an IDE agent that can gather context, propose edits, and safely apply project-wide changes.
+
+### 11. Split `AIChat` Into Session, Agent, View, and Quick Prompt Controllers
+
+**Status:** Proposed
+
+`AIChat` currently owns chat UI rendering, prompt input, streaming lifecycle, conversation persistence, quick prompt actions, project tool execution, model settings, and editor integration.
+
+Relevant files:
+
+- `addons/ai_assistant_hub/ai_chat.gd`
+- `addons/ai_assistant_hub/ai_conversation.gd`
+- `addons/ai_assistant_hub/ai_answer_handler.gd`
+- `addons/ai_assistant_hub/tools/`
+
+Why update:
+
+- Cursor-like behavior needs more workflows than one chat script should own.
+- Tool loops, edit previews, saved sessions, and provider transport will become harder to change safely while they are coupled to UI controls.
+- Smaller units make it easier to test agent behavior without instantiating the full dock UI.
+
+Possible implementation:
+
+- Extract `ChatSession` for conversation state, save/load, selected model/settings, and cancellation state.
+- Extract `AgentRunner` for request submission, streaming/non-streaming fallback, tool-call iterations, and final response handling.
+- Extract `ChatTranscriptView` for `RichTextLabel` rendering, code block formatting, scroll behavior, and streaming deltas.
+- Extract `QuickPromptController` for quick prompt button creation, `{CODE}`/`{CHAT}` expansion, and response-target dispatch.
+
+Acceptance criteria:
+
+- `AIChat` becomes mostly UI wiring.
+- Agent requests can be tested without a visible chat panel.
+- Save/load behavior remains compatible with existing saved chat files.
+
+### 12. Replace Prompt-Parsed Tool Calls With Native Tool Calls Where Supported
+
+**Status:** Proposed
+
+Project context currently uses a system prompt that asks models to emit `<tool_call>{...}</tool_call>` text. This is provider-neutral, but brittle.
+
+Relevant files:
+
+- `addons/ai_assistant_hub/ai_chat.gd`
+- `addons/ai_assistant_hub/ai_conversation.gd`
+- `addons/ai_assistant_hub/llm_apis/llm_interface.gd`
+- Provider API scripts under `addons/ai_assistant_hub/llm_apis/`
+
+Why update:
+
+- Provider resources already expose `supports_tools`, but the current agent loop does not use native provider tool/function calling.
+- Native tool calls reduce parsing failures and avoid the assistant mixing prose with tool JSON.
+- Tool result messages should be first-class conversation entries, not synthetic user prompts.
+
+Possible implementation:
+
+- Add provider-neutral `ToolDefinition`, `ToolCall`, and `ToolResult` data shapes.
+- Extend `AIConversation` beyond plain `{ role, content }` entries so tool calls and tool results are preserved.
+- Let each provider serialize tool definitions and tool results into its own request shape.
+- Keep the `<tool_call>` prompt format as a fallback for providers without native tool support.
+
+Acceptance criteria:
+
+- OpenAI-compatible providers can execute at least `project_search` and `read_project_file` through native tool calls.
+- Providers without native tools still work through the existing fallback.
+- Saved chats preserve tool call/result history.
+
+### 13. Add Reviewable Multi-File Edit Workflow
+
+**Status:** Proposed
+
+Current project write tools can write or replace files directly. That is a useful backend primitive, but too risky for an IDE assistant experience.
+
+Relevant files:
+
+- `addons/ai_assistant_hub/tools/assistant_tool_project_context.gd`
+- `addons/ai_assistant_hub/tools/assistant_tool_code_writer.gd`
+- `addons/ai_assistant_hub/ai_answer_handler.gd`
+- `addons/ai_assistant_hub/ai_chat.gd`
+
+Why update:
+
+- Cursor-like edits should be inspectable before they touch user files.
+- Multi-file changes need a place to show proposed paths, hunks, and conflicts.
+- Direct model writes make recovery and trust harder.
+
+Possible implementation:
+
+- Add a `ProposedEditSet` model with file path, original text, proposed text, and generated diff hunks.
+- Add an editor dock/popup for accept/reject all, accept/reject per file, and accept/reject per hunk if practical.
+- Make project write tools return proposed edits by default.
+- Add an explicit "apply edit set" operation that runs only after user approval.
+- Keep direct writes behind an advanced preference for users who want automation.
+
+Acceptance criteria:
+
+- Assistant can propose changes to one or more files without modifying them.
+- User can preview and reject proposed edits.
+- Accepted edits verify that original file contents still match before applying.
+
+### 14. Build a Real Project Context Index
+
+**Status:** Proposed
+
+`AssistantToolProjectContext` currently discovers files and scans text on demand.
+
+Relevant files:
+
+- `addons/ai_assistant_hub/tools/assistant_tool_project_context.gd`
+- `addons/ai_assistant_hub/ai_chat.gd`
+- Future project indexing/cache files
+
+Why update:
+
+- On-demand lexical scanning is a reasonable first pass but will not feel like an IDE assistant on larger projects.
+- Godot projects include scripts, scenes, resources, selected nodes, exported properties, and editor state.
+- Better context retrieval reduces hallucinated answers and avoids stuffing whole files into prompts.
+
+Possible implementation:
+
+- Cache project file lists and invalidate on filesystem changes where possible.
+- Add symbol-oriented search for GDScript class names, functions, signals, exports, and node paths.
+- Add scene/resource summaries for `.tscn`, `.tres`, and `project.godot`.
+- Add context tools for current script path, open scene path, selected node metadata, selected resource, and current editor errors/output.
+- Consider embeddings later, after lexical and symbol search are stable.
+
+Acceptance criteria:
+
+- Common project queries avoid rescanning every file each time.
+- Assistant can answer questions about current script, open scene, and selected node without manual copy/paste.
+- Context tools report truncation and source paths clearly.
+
+### 15. Add Default IDE Code Actions and Command Palette Entry Points
+
+**Status:** Proposed
+
+Quick prompts are powerful, but they are configured as resources and are not presented like standard IDE actions.
+
+Relevant files:
+
+- `addons/ai_assistant_hub/quick_prompts/ai_quick_prompt_resource.gd`
+- `addons/ai_assistant_hub/ai_chat.gd`
+- `examples/quick_prompts/`
+
+Why update:
+
+- Cursor-like workflows should be discoverable without creating custom resources first.
+- Users expect actions such as explain selection, fix error, refactor selection, generate docs, generate tests, and apply suggested fix.
+- Default actions can use safer structured edit and diff-preview flows once those land.
+
+Possible implementation:
+
+- Ship built-in quick actions separate from user-created quick prompt resources.
+- Add actions to context menus for the script editor and scene tree where Godot plugin APIs allow it.
+- Add a command-palette-like dropdown in the chat input for common actions.
+- Keep resource-based quick prompts as the customization layer.
+
+Acceptance criteria:
+
+- A fresh install exposes useful AI actions without manual setup.
+- Actions use current editor context automatically.
+- User-defined quick prompts continue to work.
+
+### 16. Clean Up Concrete Bugs, Dead Code, and Brittle Paths
+
+**Status:** Proposed
+
+The current code has several small cleanup items that should be addressed before larger agent work.
+
+Relevant files:
+
+- `addons/ai_assistant_hub/ai_assistant_hub.gd`
+- `addons/ai_assistant_hub/ai_chat.gd`
+- `addons/ai_assistant_hub/tools/assistant_tool_code_writer.gd`
+- `addons/ai_assistant_hub/tools/assistant_tool_selection.gd`
+- `addons/ai_assistant_hub/ai_hub_stats.gd`
+
+Recommended changes:
+
+- Initialize `_apis_used` to `{}` in `ai_assistant_hub.gd` before `_on_assistants_refresh_btn_pressed()` writes to it.
+- Guard `assistant.llm_provider` before reading `assistant.llm_provider.api_id`; assistant resources can intentionally omit a provider.
+- Remove unused locals such as `prev_text_length` in `AIChat`, `api_class` in `AIAssistantHub`, and `column` in `AssistantToolCodeWriter`.
+- Remove or use `_plugin` in `AssistantToolCodeWriter`; it is assigned but the class calls `EditorInterface` directly.
+- Decide whether hidden provider files such as Jan, OpenWebUI, OllamaTurbo, and xAI are legacy or advanced providers. If legacy, separate them from curated providers more clearly.
+- Add null guards around current script/editor access in selection and code-writing paths so non-script contexts fail with clear messages.
+- Fix typos in debug strings and method names when touching nearby code, such as `print_hidding`, "dinamically", and "conversaion".
+
+Acceptance criteria:
+
+- Plugin startup does not depend on nullable assistant provider fields.
+- Static warnings from unused variables are reduced.
+- Code-writing commands fail gracefully when no script editor is active.
+
+### 17. Add Focused Tests for Agent Safety
+
+**Status:** Proposed
+
+There is no obvious test coverage for the project tools, response parsing, or edit application behavior.
+
+Relevant files:
+
+- `addons/ai_assistant_hub/tools/assistant_tool_project_context.gd`
+- `addons/ai_assistant_hub/ai_answer_handler.gd`
+- Provider API scripts under `addons/ai_assistant_hub/llm_apis/`
+
+Why update:
+
+- File write tools and exact-text replacement are high-risk surfaces.
+- Provider parsing regressions are easy to introduce because each API shape differs.
+- Refactoring `AIChat` will be safer with tests around tool-loop behavior.
+
+Possible implementation:
+
+- Add tests for path normalization, traversal rejection, allowed extensions, file size limits, and replacement count checks.
+- Add tests for Markdown code extraction until structured edits replace it.
+- Add tests for provider model-list and response parsing using fixture JSON.
+- Add tests for streaming line parsers using SSE and newline JSON fixtures.
+
+Acceptance criteria:
+
+- File tools reject unsafe paths and unsupported file types.
+- Replacement tools do not modify files when match counts are unexpected.
+- Provider parsers handle valid and invalid fixtures predictably.
+
 ## Suggested Implementation Order
 
-1. Add provider capability flags with safe defaults.
-2. Add streaming for Ollama and one OpenAI-compatible provider.
-3. Add structured quick prompt responses for code edits.
-4. Add diff review before editor writes.
-5. Add local project search/read tools.
-6. Add a provider-neutral tool-call loop.
-7. Add native OpenAI Responses API provider.
-8. Add multimodal context.
-9. Refresh examples and README around the new workflows.
+1. Fix concrete startup/null bugs and dead-code cleanup.
+2. Add focused tests for project tools, provider parsing, and code edit safety.
+3. Split `AIChat` into session, agent runner, transcript view, and quick prompt controller pieces.
+4. Add provider capability flags with safe defaults.
+5. Add streaming for Ollama and one OpenAI-compatible provider.
+6. Add structured quick prompt responses for code edits.
+7. Add diff review before editor writes.
+8. Add local project search/read tools.
+9. Add a provider-neutral tool-call loop with native tool-call support where available.
+10. Build a project context index and current-editor/current-scene context tools.
+11. Add a reviewable multi-file edit workflow.
+12. Add native OpenAI Responses API provider.
+13. Add multimodal context.
+14. Add default IDE code actions and refresh examples/README around the new workflows.
