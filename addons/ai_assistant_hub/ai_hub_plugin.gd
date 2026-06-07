@@ -8,6 +8,7 @@ const PREF_REMOVE_THINK:= "plugins/ai_assistant_hub/preferences/thinking_target"
 const PREF_SCROLL_BOTTOM:= "plugins/ai_assistant_hub/preferences/always_scroll_to_bottom"
 const PREF_SKIP_GREETING:= "plugins/ai_assistant_hub/preferences/skip_greeting"
 const PREF_PROJECT_CONTEXT:= "plugins/ai_assistant_hub/preferences/project_context"
+const PREF_CONFIRM_CODE_EDITS:= "plugins/ai_assistant_hub/preferences/confirm_code_edits"
 const OPT_DEBUG:= "plugins/ai_assistant_hub/options/debug_mode"
 
 const CONFIG_LLM_API:= "plugins/ai_assistant_hub/llm_api"
@@ -70,7 +71,7 @@ func _enter_tree() -> void:
 	initialize_project_settings()
 	_hub_dock = load("res://addons/ai_assistant_hub/ai_assistant_hub.tscn").instantiate()
 	_hub_dock.initialize(self)
-	
+
 	var godot_version: Dictionary = Engine.get_version_info()
 	if godot_version.major >= 4 and godot_version.minor >= 6:
 		# Loading EditorDock dynamically as it only exists in Godot 4.6+ and otherwise it won't compile in previous versions.
@@ -85,7 +86,7 @@ func _enter_tree() -> void:
 			_dock.add_child(_hub_dock)
 			call("add_dock", _dock)
 			_dock.open()
-	
+
 	if not _dock:
 		add_control_to_bottom_panel(_hub_dock, "AI Hub")
 
@@ -106,28 +107,28 @@ func initialize_project_settings() -> void:
 	print_msg("Version: %s" % get_version())
 	print_msg("Godot version: %s" % Engine.get_version_info().string)
 	ProjectSettings.add_property_info(debug_property_info)
-	
+
 	var last_ver:= "1.0.0"
 	var plugin_data = ConfigFile.new()
 	var err = plugin_data.load(PLUGIN_DATA_PATH)
 	if err == Error.OK:
 		last_ver = plugin_data.get_value("general","last_used_version", "1.0.0")
-	
+
 	if _version_lower_than(last_ver, "1.6.0"):
 		_migrate_properties_1_6_0()
-	
+
 	if not ProjectSettings.has_setting(CONFIG_LLM_API):
 		ProjectSettings.set_setting(CONFIG_LLM_API, "ollama_api")
 		ProjectSettings.save()
-	
+
 	if not ProjectSettings.has_setting(PREF_REMOVE_THINK):
 		ProjectSettings.set_setting(PREF_REMOVE_THINK, ThinkingTargets.Output)
 		ProjectSettings.save()
-	
+
 	if not ProjectSettings.has_setting(PREF_SKIP_GREETING):
 		ProjectSettings.set_setting(PREF_SKIP_GREETING, false)
 		ProjectSettings.save()
-	
+
 	var think_property_info = {
 		"name": PREF_REMOVE_THINK,
 		"type": TYPE_INT,
@@ -135,11 +136,11 @@ func initialize_project_settings() -> void:
 		"hint_string": "Output,Chat,Discard"
 	}
 	ProjectSettings.add_property_info(think_property_info)
-	
+
 	if not ProjectSettings.has_setting(PREF_SCROLL_BOTTOM):
 		ProjectSettings.set_setting(PREF_SCROLL_BOTTOM, false)
 		ProjectSettings.save()
-	
+
 	if not ProjectSettings.has_setting(PREF_PROJECT_CONTEXT):
 		_add_project_setting(PREF_PROJECT_CONTEXT, true, TYPE_BOOL)
 		ProjectSettings.save()
@@ -148,10 +149,19 @@ func initialize_project_settings() -> void:
 			"name": PREF_PROJECT_CONTEXT,
 			"type": TYPE_BOOL
 		})
-	
+
+	if not ProjectSettings.has_setting(PREF_CONFIRM_CODE_EDITS):
+		_add_project_setting(PREF_CONFIRM_CODE_EDITS, true, TYPE_BOOL)
+		ProjectSettings.save()
+	else:
+		ProjectSettings.add_property_info({
+			"name": PREF_CONFIRM_CODE_EDITS,
+			"type": TYPE_BOOL
+		})
+
 	plugin_data.set_value("general","last_used_version",get_version())
 	plugin_data.save(PLUGIN_DATA_PATH)
-	
+
 	print_msg("Plugin initialized.")
 
 
@@ -169,14 +179,14 @@ func _exit_tree() -> void:
 func _add_project_setting(name: String, default_value, type: int, hint: int = PROPERTY_HINT_NONE, hint_string: String = "") -> void:
 	if ProjectSettings.has_setting(name):
 		return
-	
+
 	var property_info := {
 		"name": name,
 		"type": type,
 		"hint": hint,
 		"hint_string": hint_string
 	}
-	
+
 	ProjectSettings.set_setting(name, default_value)
 	ProjectSettings.add_property_info(property_info)
 	ProjectSettings.set_initial_value(name, default_value)
@@ -250,7 +260,7 @@ func _migrate_properties_1_6_0() -> void:
 	if not api_id.is_empty():
 		var config_base_url = LLMConfigManager.new(api_id)
 		config_base_url.migrate_deprecated_1_5_0_base_url()
-	
+
 	# Version 1.6.0 cleanup - delete API key files and project settings
 	var config_gemini = LLMConfigManager.new("gemini_api")
 	var dummy := LLMProviderResource.new()

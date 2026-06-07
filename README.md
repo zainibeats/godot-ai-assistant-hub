@@ -97,6 +97,8 @@ Stable prompt patterns matter more than model-specific wording here: ask for foc
 
 When project context is enabled, chat assistants can also use project tools to list, search, read, create, and edit allowed project text files under `res://`. File writes are limited to the same project file types used by project context (`.gd`, `.tscn`, `.tres`, `.cs`, `.shader`, and `project.godot`) and capped at 256 KB per file. Existing files are edited with exact-text replacement or explicit full-file overwrite.
 
+By default, Quick Prompts that write to the Code Editor show a review dialog before applying AI-generated code. Disable **Project Settings > General > Plugins > AI Assistant Hub > Preferences > Confirm Code Edits** to restore direct writes.
+
 ## Setup steps
 In general this is what you need to do:
 

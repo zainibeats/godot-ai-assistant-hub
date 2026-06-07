@@ -96,7 +96,7 @@ Acceptance criteria:
 
 ### 3. Add Diff Review Before Applying Code Changes
 
-**Status:** Proposed
+**Status:** Implemented initial pass
 
 Current code edits are written directly into the editor after matching the previous selection.
 
@@ -118,6 +118,13 @@ Possible implementation:
 - Show original text and proposed replacement.
 - Support accept, reject, and copy.
 - Store enough state to rollback a just-applied edit.
+
+Implemented initial pass:
+
+- Added a project setting for confirming code edits before they are applied.
+- Added a review dialog for Quick Prompt Code Editor writes that shows the original selection and proposed edit.
+- Added apply, reject, and copy proposed edit actions.
+- Kept the previous direct-write behavior available when confirmation is disabled.
 
 Acceptance criteria:
 
