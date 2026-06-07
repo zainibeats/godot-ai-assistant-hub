@@ -19,9 +19,16 @@ func _init(plugin:EditorPlugin) -> void:
 
 func get_selection() -> String:
 	var script_editor:= _plugin.get_editor_interface().get_script_editor()
-	_code_editor = script_editor.get_current_editor().get_base_editor()
+	var current_editor := script_editor.get_current_editor()
+	if current_editor == null:
+		AIHubPlugin.print_err("No script editor is active for the AI assistant selection.")
+		return ""
+	_code_editor = current_editor.get_base_editor()
 	
 	_selected_script = script_editor.get_current_script()
+	if _selected_script == null:
+		AIHubPlugin.print_err("No script is active for the AI assistant selection.")
+		return ""
 	_selected_code = _code_editor.get_selected_text()
 	if _selected_code.strip_edges(true, true).length() == 0:
 		var curr_line = _code_editor.get_caret_line()
@@ -76,20 +83,23 @@ func forget_selection() -> void:
 
 # Attempts to select the original line range previously used and returns true on success.
 func back_to_selection() -> bool:
-	if _selected_code.is_empty():
+	if _selected_code.is_empty() or _selected_script == null:
 		return false
 	
 	#double check the script to edit is still open, if it's not, open it
 	var curr_script:Script = EditorInterface.get_script_editor().get_current_script()
 	if curr_script != _selected_script:
 		AIHubPlugin.print_msg("The script for the original request was: %s" % _selected_script.resource_path)
-		AIHubPlugin.print_msg("The script currently opened is: %s" % curr_script.resource_path)
+		AIHubPlugin.print_msg("The script currently opened is: %s" % (curr_script.resource_path if curr_script != null else "None"))
 		AIHubPlugin.print_msg("AI Assistant Hub: Opening %s" % _selected_script.resource_path)
 		EditorInterface.edit_script(_selected_script)
 		forget_selection()
 	
 	var script_editor:= EditorInterface.get_script_editor()
-	var code_editor:TextEdit = script_editor.get_current_editor().get_base_editor()
+	var current_editor := script_editor.get_current_editor()
+	if current_editor == null:
+		return false
+	var code_editor:TextEdit = current_editor.get_base_editor()
 	var curr_selection: String = code_editor.get_selected_text()
 	if _selected_code != curr_selection:
 		AIHubPlugin.print_msg("AI Assistant Hub: The selection changed. Finding: %s" % _selected_code_first_line)

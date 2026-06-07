@@ -173,7 +173,7 @@ func _create_save_file() -> void:
 
 
 func _create_conversation(llm_provider: LLMProviderResource) -> void:
-	AIHubPlugin.print_msg("Starting new conversaion using API %s." % llm_provider.name)
+	AIHubPlugin.print_msg("Starting new conversation using API %s." % llm_provider.name)
 	_conversation = AIConversation.new(
 		llm_provider.system_role_name,
 		llm_provider.user_role_name,
@@ -278,12 +278,17 @@ func _on_qp_button_pressed(qp: AIQuickPromptResource) -> void:
 
 func _find_code_editor() -> TextEdit:
 	var script_editor := _plugin.get_editor_interface().get_script_editor().get_current_editor()
+	if script_editor == null:
+		return null
 	return script_editor.get_base_editor()
 
 
 func _engineer_prompt(original:String) -> String:
 	if original.contains("{CODE}"):
-		var curr_code:String = _find_code_editor().get_selected_text()
+		var code_editor := _find_code_editor()
+		if code_editor == null:
+			return original.replace("{CODE}", "")
+		var curr_code:String = code_editor.get_selected_text()
 		var prompt:String = original.replace("{CODE}", curr_code)
 		return prompt
 	else:
@@ -407,9 +412,6 @@ func _add_to_chat(text:String, caller:Caller) -> void:
 	else:  # Caller.Bot
 		# AI replies depend on the auto-scroll switch
 		output_window.scroll_following = auto_scroll_to_bottom
-
-	# Save current text length to calculate how much new content was added
-	var prev_text_length := output_window.text.length()
 
 	match caller:
 		Caller.You:

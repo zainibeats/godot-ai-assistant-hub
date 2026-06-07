@@ -12,7 +12,11 @@ script = ExtResource("2_fg1l6")
 action_name = "Code it"
 action_prompt = "Replace the comment starting with `#CODE_IT` with the smallest correct GDScript implementation.
 
-Return the complete updated selection in exactly one ```gdscript fenced block. Do not include explanations before or after the code.
+Return exactly one JSON object and no Markdown:
+{
+  \"operation\": \"replace_selection\",
+  \"content\": \"complete updated selection\"
+}
 
 ```gdscript
 {CODE}
@@ -21,4 +25,5 @@ Do not modify unrelated code."
 icon = SubResource("AtlasTexture_fj21g")
 response_target = 2
 code_placement = 2
+code_response_format = 1
 format_response_as_comment = false

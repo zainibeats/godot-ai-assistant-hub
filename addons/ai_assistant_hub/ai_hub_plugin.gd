@@ -56,8 +56,12 @@ static func print_err(message) -> void:
 	print_msg(message, true)
 
 
-static func print_hidding(message, hide_from_log:String) -> void:
+static func print_hiding(message, hide_from_log:String) -> void:
 	print_msg(message, false, hide_from_log)
+
+
+static func print_hidding(message, hide_from_log:String) -> void:
+	print_hiding(message, hide_from_log)
 
 
 # Static area end ----
@@ -178,7 +182,7 @@ func _add_project_setting(name: String, default_value, type: int, hint: int = PR
 	ProjectSettings.set_initial_value(name, default_value)
 
 
-## Load the API dinamically based on the script name given in project setting: ai_assistant_hub/llm_api
+## Load the API dynamically based on the script name given in project setting: ai_assistant_hub/llm_api
 ## By default this is equivalent to: return OllamaAPI.new()
 func new_llm(llm_provider:LLMProviderResource) -> LLMInterface:
 	if llm_provider == null:

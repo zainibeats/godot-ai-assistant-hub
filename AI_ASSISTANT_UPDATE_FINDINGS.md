@@ -53,7 +53,7 @@ Acceptance criteria:
 
 ### 2. Replace Fenced-Code Extraction With Structured Edits
 
-**Status:** Proposed
+**Status:** Implemented initial pass
 
 Current code-writing quick prompts depend on the model returning fenced `gdscript` blocks.
 
@@ -80,6 +80,13 @@ Possible implementation:
   - `chat_only`
 - Validate the response before applying editor changes.
 - Show an error instead of writing if validation fails.
+
+Implemented initial pass:
+
+- Added a `CodeResponseFormat` option to quick prompts, defaulting existing resources to fenced GDScript parsing for backward compatibility.
+- Added structured edit parsing and validation in `AIAnswerHandler`.
+- Supported `replace_selection`, `insert_before_selection`, `insert_after_selection`, and `chat_only` operations.
+- Updated the example code-writing quick prompt to request a structured JSON edit.
 
 Acceptance criteria:
 
@@ -557,7 +564,7 @@ Acceptance criteria:
 
 ### 16. Clean Up Concrete Bugs, Dead Code, and Brittle Paths
 
-**Status:** Proposed
+**Status:** In progress
 
 The current code has several small cleanup items that should be addressed before larger agent work.
 
@@ -578,6 +585,16 @@ Recommended changes:
 - Decide whether hidden provider files such as Jan, OpenWebUI, OllamaTurbo, and xAI are legacy or advanced providers. If legacy, separate them from curated providers more clearly.
 - Add null guards around current script/editor access in selection and code-writing paths so non-script contexts fail with clear messages.
 - Fix typos in debug strings and method names when touching nearby code, such as `print_hidding`, "dinamically", and "conversaion".
+
+Implemented cleanup pass:
+
+- Initialized and refreshed `_apis_used` as an empty dictionary before assistant discovery writes to it.
+- Guarded assistant usage stats against assistants without an explicit `llm_provider`.
+- Removed unused locals in `AIChat`, `AIAssistantHub`, and `AssistantToolCodeWriter`.
+- Removed the unused stored plugin reference from `AssistantToolCodeWriter`.
+- Added script-editor null guards in selection and code-writing paths.
+- Added the correctly spelled `print_hiding` helper while keeping `print_hidding` as a compatibility wrapper.
+- Fixed nearby debug/comment typos.
 
 Acceptance criteria:
 

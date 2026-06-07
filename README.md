@@ -77,14 +77,23 @@ The following keywords are used to allow the prompt to pull data from the Code E
 * Use `{CODE}` to insert the code currently selected in the editor.
 * Use `{CHAT}` to include the current content of the text prompt.
 
-**Note**: When a Quick Prompt writes directly to the Code Editor, the plugin currently extracts GDScript from fenced Markdown code blocks. Most models already tag their code properly, but not all of them. For editor-writing prompts, give explicit instructions in the assistant description or quick prompt, for example:
+**Note**: When a Quick Prompt writes directly to the Code Editor, the plugin can either use the default fenced Markdown parser or a structured JSON edit response. The structured mode is safer for code-writing prompts because the addon validates the operation before touching the editor. In that mode, ask for exactly one JSON object:
+
+    {
+      "operation": "replace_selection",
+      "content": "updated code"
+    }
+
+Supported operations are `replace_selection`, `insert_before_selection`, `insert_after_selection`, and `chat_only`.
+
+For backward-compatible editor-writing prompts that use the default fenced Markdown parser, give explicit instructions in the assistant description or quick prompt, for example:
 
     Return code in exactly one GDScript fenced block, for example:
     ```gdscript
     var x:String = "abc"
     ```
 
-Stable prompt patterns matter more than model-specific wording here: ask for focused changes, one fenced block for code that should be inserted, and chat-only explanations for reviews or debugging.
+Stable prompt patterns matter more than model-specific wording here: ask for focused changes, one structured object or fenced block for code that should be inserted, and chat-only explanations for reviews or debugging.
 
 When project context is enabled, chat assistants can also use project tools to list, search, read, create, and edit allowed project text files under `res://`. File writes are limited to the same project file types used by project context (`.gd`, `.tscn`, `.tres`, `.cs`, `.shader`, and `project.godot`) and capped at 256 KB per file. Existing files are edited with exact-text replacement or explicit full-file overwrite.
 

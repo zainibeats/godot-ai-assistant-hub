@@ -14,7 +14,7 @@ func _rebuild_headers() -> void:
 func _initialize() -> void:
 	AIHubPlugin.print_msg("JanAPI _initialize")
 	_rebuild_headers()
-	AIHubPlugin.print_hidding("Headers: %s" % _headers, _api_key)
+	AIHubPlugin.print_hiding("Headers: %s" % _headers, _api_key)
 	llm_config_changed.connect(_rebuild_headers)
 
 

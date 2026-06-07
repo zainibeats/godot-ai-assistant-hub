@@ -14,8 +14,8 @@ var _headers := PackedStringArray([
 func _initialize() -> void:
 	AIHubPlugin.print_msg("Gemini _initialize")
 	_rebuild_urls()
-	AIHubPlugin.print_hidding("_models_url: %s" % _models_url, _api_key)
-	AIHubPlugin.print_hidding("_chat_url: %s" % _chat_url, _api_key)
+	AIHubPlugin.print_hiding("_models_url: %s" % _models_url, _api_key)
+	AIHubPlugin.print_hiding("_chat_url: %s" % _chat_url, _api_key)
 	llm_config_changed.connect(_rebuild_urls)
 	model_changed.connect(_rebuild_urls.unbind(1))
 

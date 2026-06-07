@@ -3,6 +3,7 @@ extends Resource
 
 enum ResponseTarget { Chat, CodeEditor, OnlyCodeToCodeEditor }
 enum CodePlacement { BeforeSelection, AfterSelection, ReplaceSelection }
+enum CodeResponseFormat { MarkdownGDScriptFence, StructuredEditJson }
 
 ## This name will be used in the Quick Prompt button.
 ## Leave it blank for an icon-only display.
@@ -21,6 +22,9 @@ enum CodePlacement { BeforeSelection, AfterSelection, ReplaceSelection }
 
 ## Indicates in what part of the Code Editor you want to put the answer (ignored when not writing to the Code Editor).
 @export var code_placement: CodePlacement
+
+## Indicates how code-writing answers should be parsed before touching the Code Editor.
+@export var code_response_format: CodeResponseFormat = CodeResponseFormat.MarkdownGDScriptFence
 
 ## Ensures the assistant's response is returned as a GDScript comment.
 ## If required, adds a # to each line and keeps lines around 80 characters long.

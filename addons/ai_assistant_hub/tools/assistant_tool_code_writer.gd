@@ -1,12 +1,10 @@
 @tool
 class_name AssistantToolCodeWriter
 
-var _plugin:EditorPlugin
 var _code_selector:AssistantToolSelection
 
 
-func _init(plugin:EditorPlugin, code_selector:AssistantToolSelection) -> void:
-	_plugin = plugin
+func _init(_plugin:EditorPlugin, code_selector:AssistantToolSelection) -> void:
 	_code_selector = code_selector
 
 
@@ -14,6 +12,9 @@ func write_to_code_editor(text_answer:String, code_placement:AIQuickPromptResour
 	var select_success := _code_selector.back_to_selection()
 	if select_success:
 		var script_editor := EditorInterface.get_script_editor().get_current_editor()
+		if script_editor == null:
+			AIHubPlugin.print_err("No script editor is active for the AI-generated edit.")
+			return false
 		var code_editor = script_editor.get_base_editor()
 		var start_line:int = code_editor.get_selection_from_line()
 		var end_line:int = code_editor.get_selection_to_line()
@@ -30,7 +31,6 @@ func write_to_code_editor(text_answer:String, code_placement:AIQuickPromptResour
 				else:
 					code_editor.insert_line_at(end_line + 1, text_answer)
 			AIQuickPromptResource.CodePlacement.ReplaceSelection:
-				var column = code_editor.get_selection_from_column()
 				code_editor.delete_selection()
 				text_answer = strip_empty_surrounding_lines(text_answer)
 				code_editor.insert_text_at_caret(text_answer)

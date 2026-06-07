@@ -37,7 +37,7 @@ var _tab_bar:TabBar
 var _model_names:Array[String] = []
 var _models_llm: LLMInterface
 var _current_api_id:String
-var _apis_used:Dictionary
+var _apis_used:Dictionary = {}
 
 
 func _tab_changed(tab_index: int) -> void:
@@ -154,11 +154,17 @@ func _on_settings_changed(_x) -> void:
 		config.save_key(api_key_txt.text)
 	if llm_provider.fix_url.is_empty() and not url_txt.text.is_empty():
 		config.save_url(url_txt.text)
-	_models_llm.load_llm_parameters()
+	if _models_llm != null:
+		_models_llm.load_llm_parameters()
 
 
 func _on_refresh_models_btn_pressed() -> void:
 	var llm_provider:LLMProviderResource = llm_provider_option.get_selected_metadata()
+	if llm_provider == null or _models_llm == null:
+		models_list_error.text = "Select a valid LLM provider before refreshing models."
+		models_list_error.visible = true
+		models_list.visible = false
+		return
 	AIHubPlugin.print_msg("Requesting list of models for %s" % llm_provider.name)
 	if not url_txt.text.is_empty():
 		models_list.deselect_all()
@@ -204,6 +210,7 @@ func _on_assistants_refresh_btn_pressed() -> void:
 	AIHubPlugin.print_msg("Finding assistants in %s" % assistants_path)
 	var files = _get_all_resources(assistants_path)
 	var found:= false
+	_apis_used = {}
 	
 	for child in assistant_types_container.get_children():
 		if child != no_assistants_guide:
@@ -219,7 +226,8 @@ func _on_assistants_refresh_btn_pressed() -> void:
 			new_bot_btn.chat_created.connect(_on_new_bot_btn_chat_created)
 			new_bot_btn.deleted.connect(_on_assistants_refresh_btn_pressed)
 			assistant_types_container.add_child(new_bot_btn)
-			_apis_used[assistant.llm_provider.api_id] = true
+			if assistant.llm_provider != null:
+				_apis_used[assistant.llm_provider.api_id] = true
 		else:
 			AIHubPlugin.print_msg("Not an AIAssistantResource, skipping.")
 	
@@ -243,6 +251,9 @@ func _on_new_bot_btn_chat_created(chat:AIChat) -> void:
 func _get_all_resources(path: String) -> Array[String]:  
 	var file_paths: Array[String] = []  
 	var dir = DirAccess.open(path)  
+	if dir == null:
+		AIHubPlugin.print_err("Could not open resource directory: %s" % path)
+		return file_paths
 	dir.list_dir_begin()  
 	var file_name = dir.get_next()  
 	while not file_name.is_empty():  
@@ -256,6 +267,9 @@ func _get_all_resources(path: String) -> Array[String]:
 # Called when LLM provider option changes
 func _on_llm_provider_option_item_selected(index: int) -> void:
 	var llm_provider:LLMProviderResource = llm_provider_option.get_item_metadata(index)
+	if llm_provider == null:
+		AIHubPlugin.print_err("Selected LLM provider metadata is invalid.")
+		return
 	AIHubPlugin.print_msg("Switching to API %s" % llm_provider.name)
 	_current_api_id = llm_provider.api_id
 	var new_llm:LLMInterface = _plugin.new_llm(llm_provider)
@@ -275,7 +289,6 @@ func get_selected_llm_resource() -> LLMProviderResource:
 func _on_new_assistant_type_button_pressed() -> void:
 	if models_list.is_anything_selected():
 		var new_assistant_type_window:NewAIAssistantTypeWindow = NEW_AI_ASSISTANT_TYPE_WINDOW.instantiate()
-		var api_class :String = _current_api_id
 		var model_name :String = models_list.get_item_text(models_list.get_selected_items()[0])
 		var assistants_path = "%s/assistants" % self.scene_file_path.get_base_dir()
 		var llm_provider:LLMProviderResource = llm_provider_option.get_selected_metadata()
