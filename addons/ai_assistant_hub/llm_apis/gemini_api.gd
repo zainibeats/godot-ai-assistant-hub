@@ -54,8 +54,8 @@ func read_models_response(body: PackedByteArray) -> Array[String]:
 		return [INVALID_RESPONSE]
 
 
-# Helper function: recursively extract 'content' from stringified JSON messages
 func _extract_content_from_json_string(s) -> String:
+	# Older saved chats can contain JSON-encoded message objects inside content fields.
 	var attempts := 0
 	var txt = s
 	while typeof(txt) == TYPE_STRING and txt.begins_with("{") and txt.find("\"content\"") != -1 and attempts < 3:
@@ -72,10 +72,7 @@ func _extract_content_from_json_string(s) -> String:
 	return str(txt)
 
 
-# NOTE: content is expected as Array of user/system/assistant message texts, not raw JSON.
-# This method will transform the array into the required Gemini format.
 func send_chat_request(http_request: HTTPRequest, message_list: Array) -> bool:
-	# message_list is Array of Dictionaries: [{role="user", text="Hello"}, ...]
 	if _api_key.is_empty():
 		AIHubPlugin.print_err("Gemini API key not set. Configure the API key in the main tab and spawn a new assistant.")
 		return false
@@ -84,7 +81,6 @@ func send_chat_request(http_request: HTTPRequest, message_list: Array) -> bool:
 		AIHubPlugin.print_err("ERROR: You need to set an AI model for this assistant type.")
 		return false
 	
-	# Ensure model does not have "models/" prefix
 	if model.begins_with("models/"):
 		model = model.substr("models/".length())
 

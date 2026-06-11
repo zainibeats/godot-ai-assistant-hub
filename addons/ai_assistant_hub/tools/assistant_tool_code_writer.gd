@@ -44,6 +44,7 @@ func strip_empty_surrounding_lines(text:String) -> String:
 
 func _show_review_dialog(code_editor:TextEdit, text_answer:String, code_placement:AIQuickPromptResource.CodePlacement) -> void:
 	var original_selection := code_editor.get_selected_text()
+	# Keep the original selection coordinates and text so confirmation can detect edits made while the dialog is open.
 	_pending_edit = {
 		"code_editor": code_editor,
 		"text_answer": text_answer,
@@ -114,6 +115,7 @@ func _on_review_dialog_confirmed(dialog:ConfirmationDialog) -> void:
 		_pending_edit.to_line,
 		_pending_edit.to_column
 	)
+	# Refuse to apply stale AI edits if the user changed the selected code after review opened.
 	if code_editor.get_selected_text() != _pending_edit.selection_text:
 		AIHubPlugin.print_err("The original selection changed before the AI-generated edit was applied.")
 		_on_review_dialog_closed(dialog)
@@ -143,7 +145,7 @@ func _apply_edit_to_code_editor(code_editor:TextEdit, text_answer:String, code_p
 			code_editor.insert_line_at(start_line, text_answer)
 		AIQuickPromptResource.CodePlacement.AfterSelection:
 			code_editor.set_caret_line(start_line)
-			if end_line == code_editor.get_line_count() - 1: #it is at the end of the editor
+			if end_line == code_editor.get_line_count() - 1: # insert_line_at cannot append past the last line
 				code_editor.text += "\n%s" % text_answer
 			else:
 				code_editor.insert_line_at(end_line + 1, text_answer)

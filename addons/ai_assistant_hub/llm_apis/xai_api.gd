@@ -44,8 +44,8 @@ func read_models_response(body: PackedByteArray) -> Array[String]:
 		return [INVALID_RESPONSE]
 
 
-# Helper function: recursively extract 'content' from stringified JSON messages
 func _extract_content_from_json_string(s) -> String:
+	# Older saved chats can contain JSON-encoded message objects inside content fields.
 	var attempts := 0
 	var txt = s
 	while typeof(txt) == TYPE_STRING and txt.begins_with("{") and txt.find("\"content\"") != -1 and attempts < 3:
@@ -62,11 +62,7 @@ func _extract_content_from_json_string(s) -> String:
 	return str(txt)
 
 
-# NOTE: content is expected as Array of user/system/assistant message texts, not raw JSON.
-# This method will transform the array into the required xAI format.
 func send_chat_request(http_request: HTTPRequest, message_list: Array) -> bool:
-	# example request data: 
-	#{ "messages": [ { "role": "system", "content": "You are a helpful assistant that can answer questions and help with tasks." }, { "role": "user", "content": "What is 101*3?" } ], "model": "grok-4-0709" }
 	if _api_key.is_empty():
 		AIHubPlugin.print_err("xAI API key not set. Configure the API key in the main tab and spawn a new assistant.")
 		return false
@@ -110,11 +106,6 @@ func send_chat_request(http_request: HTTPRequest, message_list: Array) -> bool:
 
 
 func read_response(body: PackedByteArray) -> String:
-	# example response data
-	#{"id":"2a2db6ed-6e92-e80e-6bc5-0db5e4b3deba","object":"chat.completion","created":1770680490,"model":"grok-4-0709","choices":[{"index":0,"message":{"role":"assistant","content":"101 × 3 = 303.","refusal":null},"finish_reason":"stop"}],"usage":
-	#{"prompt_tokens":706,"completion_tokens":8,"total_tokens":783,"prompt_tokens_details":{"text_tokens":706,"audio_tokens":0,"image_tokens":0,"cached_tokens":689},"completion_tokens_details":
-	#{"reasoning_tokens":69,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0},"num_sources_used":0,"cost_in_usd_ticks":17227500},"system_fingerprint":"fp_dd0aa291c6"}
-	
 	var raw_body = body.get_string_from_utf8()
 	#print("xAI API raw response: ", raw_body)
 	
@@ -128,7 +119,6 @@ func read_response(body: PackedByteArray) -> String:
 	if response == null:
 		AIHubPlugin.print_err("xAI response is null after parsing.")
 		return INVALID_RESPONSE
-	# Print and handle xAI errors
 	if response.has("error"):
 		#print("xAI API Error: ", JSON.stringify(response.error))
 		AIHubPlugin.print_err("xAI API Error: " + str(response.error))

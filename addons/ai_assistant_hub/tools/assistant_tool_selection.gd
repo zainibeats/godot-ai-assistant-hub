@@ -31,12 +31,13 @@ func get_selection() -> String:
 		return ""
 	_selected_code = _code_editor.get_selected_text()
 	if _selected_code.strip_edges(true, true).length() == 0:
+		# With no selection, use the current line so quick prompts still have concrete code context.
 		var curr_line = _code_editor.get_caret_line()
 		_code_editor.select(curr_line, 0, curr_line, line(curr_line).length())
 		_selected_code = _code_editor.get_selected_text().strip_edges(true, true)
 	
 	if not _selected_code.is_empty():
-		#Make sure we don't start or end with empty lines, as that makes difficult to find the code again
+		# Trim empty edge lines so the saved selection can be found again after the assistant responds.
 		var first_not_empty = line(first_line()).strip_edges(true, false)
 		while first_not_empty.is_empty() and first_line() + 1 <= last_line():
 			_code_editor.select(first_line() + 1, 0, last_line(), last_column())
@@ -86,7 +87,7 @@ func back_to_selection() -> bool:
 	if _selected_code.is_empty() or _selected_script == null:
 		return false
 	
-	#double check the script to edit is still open, if it's not, open it
+	# Restore the script used for the original request before attempting to reselect its text.
 	var curr_script:Script = EditorInterface.get_script_editor().get_current_script()
 	if curr_script != _selected_script:
 		AIHubPlugin.print_msg("The script for the original request was: %s" % _selected_script.resource_path)
@@ -102,6 +103,7 @@ func back_to_selection() -> bool:
 	var code_editor:TextEdit = current_editor.get_base_editor()
 	var curr_selection: String = code_editor.get_selected_text()
 	if _selected_code != curr_selection:
+		# If the user moved the caret, recover by matching the original first and last selected lines.
 		AIHubPlugin.print_msg("AI Assistant Hub: The selection changed. Finding: %s" % _selected_code_first_line)
 		var search_start:Vector2i = code_editor.search(_selected_code_first_line, TextEdit.SearchFlags.SEARCH_MATCH_CASE, 0, 0)
 		if search_start.x == -1:

@@ -20,10 +20,8 @@ func _init(plugin:EditorPlugin, code_selector:AssistantToolSelection) -> void:
 
 
 func handle(text_answer:String, quick_prompt:AIQuickPromptResource) -> void:
-	#Simple chat
 	if quick_prompt == null:
 		bot_message_produced.emit(text_answer)
-	#Response is for a quick prompt
 	else:
 		var chat_answer := text_answer
 		if quick_prompt.format_response_as_comment and not _uses_structured_edit_response(quick_prompt):
@@ -70,6 +68,7 @@ func _apply_structured_edit(text_answer:String, quick_prompt:AIQuickPromptResour
 
 
 func _parse_structured_edit(text:String) -> Dictionary:
+	# Structured edits are intentionally strict so a malformed model response never changes the Code Editor.
 	var json_text := _extract_json_object_text(text)
 	if json_text.is_empty():
 		return _structured_edit_error("The assistant did not return a structured edit JSON object. The Code Editor was not modified.")
@@ -105,6 +104,7 @@ func _extract_json_object_text(text:String) -> String:
 	var trimmed := text.strip_edges()
 	if trimmed.begins_with("{") and trimmed.ends_with("}"):
 		return trimmed
+	# Accept fenced JSON or surrounding prose, since some models wrap valid JSON in a short explanation.
 	var fenced_json := _extract_fenced_block(text, "json")
 	if not fenced_json.is_empty():
 		return fenced_json.strip_edges()
@@ -157,10 +157,9 @@ func _extract_gdscript(text:String) -> String:
 func _convert_to_comment(text:String) -> String:
 	text = text.strip_edges(true, true)
 	if text.begins_with("#"):
-		#trusting the model returned a comment somewhat formatted
+		# Preserve model-provided comment formatting when it is already present.
 		return text
 	else:
-		#formatting the comment
 		var result := "# "
 		var line_length := COMMENT_LENGTH
 		var curr_line_length := 0

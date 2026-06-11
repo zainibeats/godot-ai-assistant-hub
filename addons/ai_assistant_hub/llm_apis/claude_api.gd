@@ -101,6 +101,7 @@ func read_response(body: PackedByteArray) -> String:
 
 
 func _build_chat_body(content: Array) -> Dictionary:
+	# Claude accepts system text separately and only user/assistant roles in the message list.
 	var messages := []
 	var system_parts: Array[String] = []
 	for entry in content:
@@ -140,6 +141,7 @@ func _append_message(messages: Array, role: String, text: String) -> void:
 	if not messages.is_empty():
 		var last_message = messages[messages.size() - 1]
 		if last_message is Dictionary and last_message.get("role", "") == role:
+			# Claude requires alternating roles, so consecutive entries with the same role are merged.
 			last_message["content"] = "%s\n\n%s" % [last_message.get("content", ""), text]
 			messages[messages.size() - 1] = last_message
 			return

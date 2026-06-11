@@ -227,6 +227,7 @@ func _start_streaming_post(url:String, headers, body:String) -> bool:
 
 
 func _parse_http_url(url:String) -> Dictionary:
+	# HTTPClient needs host, port, and path separately; HTTPRequest accepts the full URL.
 	var scheme_end := url.find("://")
 	if scheme_end == -1:
 		return {}
@@ -269,6 +270,7 @@ func _read_streaming_body() -> void:
 func _process_streaming_text(text:String) -> void:
 	_stream_line_buffer += text
 	var lines := _stream_line_buffer.split("\n")
+	# Keep the final partial line until the next chunk completes it.
 	_stream_line_buffer = lines[lines.size() - 1]
 	for i in range(lines.size() - 1):
 		var line := lines[i].strip_edges()
@@ -294,6 +296,7 @@ func _read_streaming_line(line:String) -> Dictionary:
 func _finish_streaming_response() -> void:
 	if _stream_http_client == null:
 		return
+	# Some providers close the stream without a trailing newline, leaving one parseable event buffered.
 	if not _stream_line_buffer.strip_edges().is_empty():
 		var parsed := _read_streaming_line(_stream_line_buffer.strip_edges())
 		if parsed.has("error"):

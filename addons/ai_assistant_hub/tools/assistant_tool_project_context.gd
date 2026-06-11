@@ -23,6 +23,9 @@ const MAX_FILES_LISTED := 250
 const MAX_FILES_SCANNED := 1000
 
 
+# Project context tools intentionally allow a small text-focused surface area, keeping binary,
+# generated, and oversized files out of prompts and model-requested writes.
+
 func list_project_files(limit:int = MAX_FILES_LISTED) -> Dictionary:
 	limit = clampi(limit, 1, MAX_FILES_LISTED)
 	var files := _discover_project_files(limit)
@@ -225,6 +228,7 @@ func _normalize_res_path(path:String) -> String:
 		path = path.simplify_path()
 	else:
 		path = ("res://%s" % path.trim_prefix("/")).simplify_path()
+	# Keep tool calls inside the Godot project even when the model supplies a relative or absolute path.
 	if not path.begins_with("res://") or path.contains(".."):
 		return ""
 	return path

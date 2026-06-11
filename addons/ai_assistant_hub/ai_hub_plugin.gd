@@ -22,9 +22,7 @@ const DEPRECATED_CONFIG_GEMINI_API_KEY := "plugins/ai_assistant_hub/gemini_api_k
 const DEPRECATED_CONFIG_OPENWEBUI_API_KEY := "plugins/ai_assistant_hub/openwebui_api_key"
 
 var _hub_dock:AIAssistantHub
-var _dock #Not giving type EditorDock to keep this compatible with versions older than 4.6
-
-# Static area start ----
+var _dock # Keep untyped because EditorDock only exists in Godot 4.6+.
 
 static func print_msg(message, is_error:=false, hide_from_log:String = "") -> void:
 	var str_msg:= str(message)
@@ -64,8 +62,6 @@ static func print_hiding(message, hide_from_log:String) -> void:
 static func print_hidding(message, hide_from_log:String) -> void:
 	print_hiding(message, hide_from_log)
 
-
-# Static area end ----
 
 func _enter_tree() -> void:
 	initialize_project_settings()
@@ -209,7 +205,7 @@ func new_llm(llm_provider:LLMProviderResource) -> LLMInterface:
 	var instance:LLMInterface = script.new(llm_provider)
 	if instance == null:
 		print_err("Failed to instantiate the LLM provider from script: %s" % script_path)
-		return null # Add this line to ensure a value is always returned
+		return null
 	return instance
 
 
@@ -228,17 +224,10 @@ func get_version() -> String:
 	return version
 
 
-# Compare two version strings of 3 parts (e.g. 1.0.0)
-# ---------------------------------------------------
-# Return value:
-#   -1  if v1 < v2
-#    0  if v1 == v2
-#    1  if v1 > v2
+# Compares three-part plugin versions and returns -1, 0, or 1.
 func _compare_versions(v1: String, v2: String) -> int:
-	# Split the strings into their numeric parts
 	var parts1 = v1.split(".")
 	var parts2 = v2.split(".")
-	# All versions are guaranteed to have 3 numeric parts
 	for i in range(3):
 		var a = int(parts1[i])
 		var b = int(parts2[i])

@@ -186,6 +186,7 @@ func _create_conversation(llm_provider: LLMProviderResource) -> void:
 func _build_system_message() -> String:
 	var message := "%s\nYour name is %s." % [_assistant_settings.ai_description, _bot_name]
 	if ProjectSettings.get_setting(AIHubPlugin.PREF_PROJECT_CONTEXT, true):
+		# Project tools are advertised only through the system prompt so providers without native tools can use them.
 		message += PROJECT_CONTEXT_SYSTEM_PROMPT
 	return message
 
@@ -405,12 +406,9 @@ func escape_bbcode(bbcode_text):
 func _add_to_chat(text:String, caller:Caller) -> void:
 	var auto_scroll_to_bottom: bool = ProjectSettings.get_setting(AIHubPlugin.PREF_SCROLL_BOTTOM, false)
 
-	# Set auto-scroll based on message sender
 	if caller == Caller.You or caller == Caller.System:
-		# User and system messages always auto-scroll
 		output_window.scroll_following = true
 	else:  # Caller.Bot
-		# AI replies depend on the auto-scroll switch
 		output_window.scroll_following = auto_scroll_to_bottom
 
 	match caller:
@@ -423,7 +421,7 @@ func _add_to_chat(text:String, caller:Caller) -> void:
 			output_window.append_text("\n[color=FF770066][b]%s[/b][/color]:\n" % _bot_name)
 			output_window.push_indent(1)
 			if text.count("```") > 1:
-				# Format markup response with code
+				# Split fenced blocks manually so BBCode formatting does not corrupt code snippets.
 				var parts:= text.split("```")
 				var writing_code := false
 
@@ -457,11 +455,10 @@ func _add_to_chat(text:String, caller:Caller) -> void:
 
 	output_window.pop_all()
 
-	# If this is an AI reply and auto-scroll is disabled, scroll one page
 	if caller == Caller.Bot and not auto_scroll_to_bottom:
-		# Make sure the interface updates first so the scrollbar is properly calculated
+		# Wait for RichTextLabel layout before paging the scrollbar.
 		await get_tree().process_frame
-		await get_tree().process_frame  # Wait two frames to ensure text and scrollbar are updated
+		await get_tree().process_frame
 		_scroll_output_by_page()
 
 
@@ -475,6 +472,7 @@ func _try_handle_agent_tool_call(text_answer:String) -> bool:
 		_add_to_chat("Project context tool limit reached. Ask again with a narrower request.", Caller.System)
 		return false
 
+	# Store the raw tool request in history so the follow-up response has the same context the model saw.
 	_agent_tool_iterations += 1
 	_conversation.add_assistant_response(text_answer)
 	var tool_name:String = tool_call.get("name", tool_call.get("tool", ""))
@@ -490,6 +488,7 @@ func _try_handle_agent_tool_call(text_answer:String) -> bool:
 
 
 func _submit_agent_tool_result(tool_name:String, tool_result:Dictionary) -> void:
+	# Tool results are fed back as user text because this layer supports providers without native tool calls.
 	var result_text := "Tool result for %s:\n```json\n%s\n```\nUse this project tool result to continue. If more tool work is needed, request another tool call. Otherwise answer the user's original request." % [
 		tool_name,
 		JSON.stringify(tool_result, "\t")
@@ -503,6 +502,7 @@ func _submit_agent_tool_result(tool_name:String, tool_result:Dictionary) -> void
 
 
 func _extract_tool_call(text_answer:String) -> Dictionary:
+	# Only one explicit tool block is supported per assistant turn.
 	var start := text_answer.find("<tool_call>")
 	var end := text_answer.find("</tool_call>")
 	if start == -1 or end == -1 or end <= start:
@@ -583,19 +583,14 @@ func _on_reasoning_options_btn_item_selected(index: int) -> void:
 	_llm.reasoning = reasoning_options_btn.text
 
 
-# Scroll the output window by one page
 func _scroll_output_by_page() -> void:
 	if output_window == null:
 		return
-	# Get the vertical scrollbar of the output window
 	var v_scroll_bar := output_window.get_v_scroll_bar()
 	if v_scroll_bar == null:
 		return
-	# Get the visible height of the output window (one page height)
 	var visible_height = output_window.size.y
-	# Calculate new position by adding one page height, but don't exceed maximum value
 	var new_value = min(v_scroll_bar.value + visible_height, v_scroll_bar.max_value)
-	# Set the new scroll position
 	v_scroll_bar.value = new_value
 
 

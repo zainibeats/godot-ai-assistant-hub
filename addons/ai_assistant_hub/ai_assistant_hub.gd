@@ -71,8 +71,8 @@ func initialize(plugin:AIHubPlugin) -> void:
 	AIHubPlugin.print_msg("Initializing main tab.")
 	_current_api_id = ProjectSettings.get_setting(AIHubPlugin.CONFIG_LLM_API)
 	
-	_initialize_llm_provider_options() # Load LLM providers
-	_on_assistants_refresh_btn_pressed() # Load assistant buttons
+	_initialize_llm_provider_options()
+	_on_assistants_refresh_btn_pressed()
 	
 	_tab_bar = tab_container.get_tab_bar()
 	_tab_bar.tab_changed.connect(_tab_changed)
@@ -84,7 +84,6 @@ func initialize(plugin:AIHubPlugin) -> void:
 	stats_http_request.gather(_apis_used)
 
 
-# Initialize LLM provider options
 func _initialize_llm_provider_options() -> void:
 	AIHubPlugin.print_msg("Loading LLM providers.")
 	llm_provider_option.clear()
@@ -116,7 +115,6 @@ func _initialize_llm_provider_options() -> void:
 		_on_llm_provider_option_item_selected(selected_index)
 
 
-# Update UI based on current provider selection
 func _update_provider_ui() -> void:
 	var llm_provider:LLMProviderResource = llm_provider_option.get_selected_metadata()
 	if llm_provider == null:
@@ -140,7 +138,7 @@ func _update_provider_ui() -> void:
 	else:
 		url_label.text = "Server URL"
 	
-	_on_refresh_models_btn_pressed() # Load models
+	_on_refresh_models_btn_pressed()
 	AIHubPlugin.print_msg("Completed loading API %s" % llm_provider.name)
 
 
@@ -264,7 +262,6 @@ func _get_all_resources(path: String) -> Array[String]:
 	return file_paths
 
 
-# Called when LLM provider option changes
 func _on_llm_provider_option_item_selected(index: int) -> void:
 	var llm_provider:LLMProviderResource = llm_provider_option.get_item_metadata(index)
 	if llm_provider == null:
